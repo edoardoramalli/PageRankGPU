@@ -16,11 +16,11 @@ def manage_vertex():
             dictionary[name_site] = index_site
             number_of_vertex = number_of_vertex + 1
 
-    # with open('vertex.csv', 'w') as csvFile:
-    #     writer = csv.writer(csvFile)
-    #     writer.writerows(lista)
-    #
-    # csvFile.close()
+    with open('vertex.csv', 'w') as csvFile:
+        writer = csv.writer(csvFile)
+        writer.writerows(dictionary)
+
+    csvFile.close()
 
     return dictionary
 
@@ -28,37 +28,26 @@ def manage_vertex():
 dictionary = manage_vertex()
 num_of_vertex = len(dictionary)
 
-matrix = {}
-for i in range(0, num_of_vertex):
-    matrix[i] = []
+matrix = [[]]
+for i in range(0, num_of_vertex ):
+    matrix.append([i])
 
 
 
 def manage_edge():
     with open(path_edge) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=' ')
-        count = 0
         for row in csv_reader:
             name_site = (row[0].replace('"', '')).strip()
             reported_site = (row[1].replace('"', '')).strip()
             index_of_name_site = int(dictionary.get(name_site))
             index_of_reported_site = int(dictionary.get(reported_site))
 
-            lista = matrix[index_of_name_site]
+            matrix[index_of_name_site].append(index_of_reported_site)
 
-            if lista != []:
-                print("evviva")
-                print(type(lista))
-                print(lista)
-            lista = lista.append(index_of_reported_site)
-            matrix[index_of_name_site] = lista
-
-
-    with open('dict.csv', 'w') as csv_file:
-        writer = csv.writer(csv_file)
-        for key, value in matrix.items():
-            writer.writerow([key, value])
-
+    with open("matrixA.csv", "w") as f:
+        writer = csv.writer(f)
+        writer.writerows(matrix)
 
 
 
@@ -66,4 +55,4 @@ def manage_edge():
 
 manage_edge()
 
-print(type(matrix[87345]))
+print(matrix[0])

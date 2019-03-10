@@ -1,12 +1,11 @@
 import numpy as np
 
-a = {}
+a =[[]]
 
-a[5] = 3
-b = []
-b = [a[5]]
-b.append(87)
+a[0] = [0]
+a[0].append(78)
+a.append( [5])
+print(a)
 
 
-print (a)
 
