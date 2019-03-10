@@ -1,4 +1,4 @@
-# Install script for directory: /Users/edoardo/Documents/GitHub/PageRankGPU
+# Install script for directory: /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -40,5 +40,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/Users/edoardo/Documents/GitHub/PageRankGPU/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

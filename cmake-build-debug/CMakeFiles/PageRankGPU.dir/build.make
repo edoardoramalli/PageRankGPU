@@ -34,19 +34,19 @@ cmake_force:
 SHELL = /bin/sh
 
 # The CMake executable.
-CMAKE_COMMAND = /Applications/Coding/CLion.app/Contents/bin/cmake/mac/bin/cmake
+CMAKE_COMMAND = /Applications/apps/CLion/ch-0/183.5429.37/CLion.app/Contents/bin/cmake/mac/bin/cmake
 
 # The command to remove a file.
-RM = /Applications/Coding/CLion.app/Contents/bin/cmake/mac/bin/cmake -E remove -f
+RM = /Applications/apps/CLion/ch-0/183.5429.37/CLion.app/Contents/bin/cmake/mac/bin/cmake -E remove -f
 
 # Escaping for special characters.
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /Users/edoardo/Documents/GitHub/PageRankGPU
+CMAKE_SOURCE_DIR = /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /Users/edoardo/Documents/GitHub/PageRankGPU/cmake-build-debug
+CMAKE_BINARY_DIR = /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/cmake-build-debug
 
 # Include any dependencies generated for this target.
 include CMakeFiles/PageRankGPU.dir/depend.make
@@ -59,42 +59,42 @@ include CMakeFiles/PageRankGPU.dir/flags.make
 
 CMakeFiles/PageRankGPU.dir/main.cpp.o: CMakeFiles/PageRankGPU.dir/flags.make
 CMakeFiles/PageRankGPU.dir/main.cpp.o: ../main.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/edoardo/Documents/GitHub/PageRankGPU/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/PageRankGPU.dir/main.cpp.o"
-	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/PageRankGPU.dir/main.cpp.o -c /Users/edoardo/Documents/GitHub/PageRankGPU/main.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/PageRankGPU.dir/main.cpp.o"
+	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/PageRankGPU.dir/main.cpp.o -c /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/main.cpp
 
 CMakeFiles/PageRankGPU.dir/main.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/PageRankGPU.dir/main.cpp.i"
-	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/edoardo/Documents/GitHub/PageRankGPU/main.cpp > CMakeFiles/PageRankGPU.dir/main.cpp.i
+	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/main.cpp > CMakeFiles/PageRankGPU.dir/main.cpp.i
 
 CMakeFiles/PageRankGPU.dir/main.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/PageRankGPU.dir/main.cpp.s"
-	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/edoardo/Documents/GitHub/PageRankGPU/main.cpp -o CMakeFiles/PageRankGPU.dir/main.cpp.s
+	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/main.cpp -o CMakeFiles/PageRankGPU.dir/main.cpp.s
 
 CMakeFiles/PageRankGPU.dir/Matrix.cpp.o: CMakeFiles/PageRankGPU.dir/flags.make
 CMakeFiles/PageRankGPU.dir/Matrix.cpp.o: ../Matrix.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/edoardo/Documents/GitHub/PageRankGPU/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/PageRankGPU.dir/Matrix.cpp.o"
-	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/PageRankGPU.dir/Matrix.cpp.o -c /Users/edoardo/Documents/GitHub/PageRankGPU/Matrix.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/PageRankGPU.dir/Matrix.cpp.o"
+	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/PageRankGPU.dir/Matrix.cpp.o -c /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/Matrix.cpp
 
 CMakeFiles/PageRankGPU.dir/Matrix.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/PageRankGPU.dir/Matrix.cpp.i"
-	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/edoardo/Documents/GitHub/PageRankGPU/Matrix.cpp > CMakeFiles/PageRankGPU.dir/Matrix.cpp.i
+	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/Matrix.cpp > CMakeFiles/PageRankGPU.dir/Matrix.cpp.i
 
 CMakeFiles/PageRankGPU.dir/Matrix.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/PageRankGPU.dir/Matrix.cpp.s"
-	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/edoardo/Documents/GitHub/PageRankGPU/Matrix.cpp -o CMakeFiles/PageRankGPU.dir/Matrix.cpp.s
+	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/Matrix.cpp -o CMakeFiles/PageRankGPU.dir/Matrix.cpp.s
 
 CMakeFiles/PageRankGPU.dir/PageRank.cpp.o: CMakeFiles/PageRankGPU.dir/flags.make
 CMakeFiles/PageRankGPU.dir/PageRank.cpp.o: ../PageRank.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/edoardo/Documents/GitHub/PageRankGPU/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/PageRankGPU.dir/PageRank.cpp.o"
-	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/PageRankGPU.dir/PageRank.cpp.o -c /Users/edoardo/Documents/GitHub/PageRankGPU/PageRank.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/PageRankGPU.dir/PageRank.cpp.o"
+	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/PageRankGPU.dir/PageRank.cpp.o -c /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/PageRank.cpp
 
 CMakeFiles/PageRankGPU.dir/PageRank.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/PageRankGPU.dir/PageRank.cpp.i"
-	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/edoardo/Documents/GitHub/PageRankGPU/PageRank.cpp > CMakeFiles/PageRankGPU.dir/PageRank.cpp.i
+	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/PageRank.cpp > CMakeFiles/PageRankGPU.dir/PageRank.cpp.i
 
 CMakeFiles/PageRankGPU.dir/PageRank.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/PageRankGPU.dir/PageRank.cpp.s"
-	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/edoardo/Documents/GitHub/PageRankGPU/PageRank.cpp -o CMakeFiles/PageRankGPU.dir/PageRank.cpp.s
+	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/PageRank.cpp -o CMakeFiles/PageRankGPU.dir/PageRank.cpp.s
 
 # Object files for target PageRankGPU
 PageRankGPU_OBJECTS = \
@@ -110,7 +110,7 @@ PageRankGPU: CMakeFiles/PageRankGPU.dir/Matrix.cpp.o
 PageRankGPU: CMakeFiles/PageRankGPU.dir/PageRank.cpp.o
 PageRankGPU: CMakeFiles/PageRankGPU.dir/build.make
 PageRankGPU: CMakeFiles/PageRankGPU.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/Users/edoardo/Documents/GitHub/PageRankGPU/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX executable PageRankGPU"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX executable PageRankGPU"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/PageRankGPU.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
@@ -123,6 +123,6 @@ CMakeFiles/PageRankGPU.dir/clean:
 .PHONY : CMakeFiles/PageRankGPU.dir/clean
 
 CMakeFiles/PageRankGPU.dir/depend:
-	cd /Users/edoardo/Documents/GitHub/PageRankGPU/cmake-build-debug && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /Users/edoardo/Documents/GitHub/PageRankGPU /Users/edoardo/Documents/GitHub/PageRankGPU /Users/edoardo/Documents/GitHub/PageRankGPU/cmake-build-debug /Users/edoardo/Documents/GitHub/PageRankGPU/cmake-build-debug /Users/edoardo/Documents/GitHub/PageRankGPU/cmake-build-debug/CMakeFiles/PageRankGPU.dir/DependInfo.cmake --color=$(COLOR)
+	cd /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/cmake-build-debug && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/cmake-build-debug /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/cmake-build-debug /Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/cmake-build-debug/CMakeFiles/PageRankGPU.dir/DependInfo.cmake --color=$(COLOR)
 .PHONY : CMakeFiles/PageRankGPU.dir/depend
 

@@ -6,7 +6,21 @@
 
 #IncludeRegexTransform: 
 
-/Users/edoardo/Documents/GitHub/PageRankGPU/main.cpp
+/Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/Matrix.cpp
+Matrix.h
+/Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/Matrix.h
+stdexcept
+-
+
+/Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/Matrix.h
+vector
+-
+
+/Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/main.cpp
 iostream
 -
+stdio.h
+-
+Matrix.h
+/Users/diegopiccinotti/Documents/Università/PoliMi/PageRankGPU/Matrix.h
 

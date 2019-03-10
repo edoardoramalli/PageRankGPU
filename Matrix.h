@@ -13,10 +13,15 @@ using namespace std;
 class Matrix {
 
 private:
-    vector<double> mdata;
+    double *mdata;
+    int rows;
+    int cols;
 
 public:
-    Matrix();
+    Matrix(int rows, int cols);
+    void setElement(double value, int i, int j);
+    double getElement(int i, int j);
+    double* getrawdata();
 
 };
 

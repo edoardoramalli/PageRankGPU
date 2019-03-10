@@ -2,6 +2,7 @@ path_edge = "/users/edoardo/downloads/pagerank_contest_edgelists/graph_small_e.e
 path_vertex = "/users/edoardo/downloads/pagerank_contest_edgelists/graph_small_v.edgelist"
 
 import csv
+from argparse import ArgumentParser
 
 def manage_vertex():
     dictionary = {}
@@ -28,9 +29,9 @@ def manage_vertex():
 dictionary = manage_vertex()
 num_of_vertex = len(dictionary)
 
-matrix = [[0]]
-for i in range(1, num_of_vertex):
-    matrix.append([i])
+matrix_A = [([i] for i in range(1, num_of_vertex) )]
+# for i in range(1, num_of_vertex):
+#     matrix_A.append([i])
 
 
 def manage_edge():
@@ -42,15 +43,15 @@ def manage_edge():
             index_of_name_site = int(dictionary.get(name_site))
             index_of_reported_site = int(dictionary.get(reported_site))
 
-            matrix[index_of_name_site].append(index_of_reported_site)
+            matrix_A[index_of_name_site].append(index_of_reported_site)
 
-    with open("matrixA.csv", "w") as f:
+    with open("matrix_AA.csv", "w") as f:
         writer = csv.writer(f)
-        writer.writerows(matrix)
+        writer.writerows(matrix_A)
 
     d = []
-    for i in range (0,len(matrix)):
-        d.append(len(matrix[i])-1)
+    for i in range (0,len(matrix_A)):
+        d.append(len(matrix_A[i])-1)
 
     d_inv =[]
     for i in range (0,len(d)):
@@ -59,13 +60,19 @@ def manage_edge():
         else:
             d_inv.append(0)
 
-    with open("matrixD.csv", "w") as f:
+    with open("matrix_AD.csv", "w") as f:
         writer = csv.writer(f, delimiter='#')
         writer.writerow(d)
 
-    with open("matrixDinv.csv", "w") as f:
+    with open("matrix_ADinv.csv", "w") as f:
         writer = csv.writer(f, delimiter='#')
         writer.writerow(d_inv)
 
 
 manage_edge()
+
+if __name__ == "__main__":
+    #TODO add command line parameters
+    # parser = argparse.ArgumentParser(description='Prepare dataset matrices')
+    # parser.add_argument()
+    pass

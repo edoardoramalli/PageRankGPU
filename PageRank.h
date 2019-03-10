@@ -5,7 +5,7 @@
 #ifndef PAGERANKGPU_PAGERANK_H
 #define PAGERANKGPU_PAGERANK_H
 
-static double dumping_factor = 0.85;
+static double damping_factor = 0.85;
 
 class PageRank {
 
