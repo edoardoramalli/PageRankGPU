@@ -29,9 +29,11 @@ def manage_vertex():
 dictionary = manage_vertex()
 num_of_vertex = len(dictionary)
 
-matrix_A = [([i] for i in range(1, num_of_vertex) )]
-# for i in range(1, num_of_vertex):
-#     matrix_A.append([i])
+matrix_A = [[0]]
+
+#matrix_A = [([i] for i in range(0, num_of_vertex) )]
+for i in range(1, num_of_vertex):
+    matrix_A.append([i])
 
 
 def manage_edge():
@@ -61,11 +63,11 @@ def manage_edge():
             d_inv.append(0)
 
     with open("matrix_AD.csv", "w") as f:
-        writer = csv.writer(f, delimiter='#')
+        writer = csv.writer(f, delimiter=',')
         writer.writerow(d)
 
     with open("matrix_ADinv.csv", "w") as f:
-        writer = csv.writer(f, delimiter='#')
+        writer = csv.writer(f, delimiter=',')
         writer.writerow(d_inv)
 
 
