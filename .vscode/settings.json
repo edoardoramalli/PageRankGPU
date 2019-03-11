@@ -1,6 +1,8 @@
 {
     "python.linting.pylintEnabled": true,
     "files.associations": {
-        "*.tcc": "cpp"
+        "*.tcc": "cpp",
+        "iosfwd": "cpp",
+        "iostream": "cpp"
     }
 }

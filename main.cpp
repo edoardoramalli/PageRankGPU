@@ -7,44 +7,39 @@
 
 using namespace std;
 
-#define FILE "test.csv"
+#define FILE "matrix_AA.csv"
 
 int main(){
 
    	ifstream csvFile;
    	csvFile.open(FILE);
+	vector<vector<double>> T_vector = {};
 	if (csvFile){
 		string line;
 		// Read number of vertices
 		getline(csvFile, line);
 		int vertices_number = stoi(line);
-		int prob;
+		double *T_static[vertices_number];
+		double *static_temp;
+		int i = 0;
 		// Matrix *myMatrix = new Matrix(vertices_number, vertices_number);
-		vector<vector<double>> T_vector = {};
 		// Load vertices and connections
 		while (getline(csvFile, line)){
 			stringstream ss(line);
 			string element;
 			vector<double> temp = {};
-			
+			getline(ss, element, ',');
 			// Add probability and connections
         	while (getline(ss, element, ',')) {
             	temp.push_back(stod(element));
         	}
-			// Add line to vector
-			T_vector.push_back(temp);
+			// Add line to "matrix"
+			T_static[i] = (double*) malloc(temp.size()*sizeof(double));
+			for (int j = 0; j < temp.size(); j++){
+				T_static[i][j] = temp[j];
+			}
+			i++;
 		}
 	}
-
-	Matrix *myMat = new Matrix(10, 10);
-	for (int i = 0; i < 10 ; i++){
-		for(int j = 0; j < 10; j++){
-			cout << myMat->getElement(i,j) << " ";
-		}
-		cout << endl;
-	}
-
-
-   //cout << myMat->getElement(1,9) << endl;
-
+	return 0;
 }
