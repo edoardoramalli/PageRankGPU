@@ -9,6 +9,10 @@ using namespace std;
 
 #define FILE "matrix_AA.csv"
 
+__global__ ourkernel(){
+
+}
+
 int main(){
 
    	ifstream csvFile;
@@ -34,12 +38,18 @@ int main(){
             	temp.push_back(stod(element));
         	}
 			// Add line to "matrix"
-			T_static[i] = (double*) malloc(temp.size()*sizeof(double));
-			for (int j = 0; j < temp.size(); j++){
+			T_static[i] = (double*) malloc((temp.size()+1)*sizeof(double));
+			T_static[i][0] = temp.size();
+			for (int j = 1; j < temp.size(); j++){
 				T_static[i][j] = temp[j];
 			}
 			i++;
 		}
+		// cudamemcpy
+		for (int i = 0; i < vertices_number; i++){
+		ourkernel<<1,T_static[i][0]>>();
+		}
+		//cout << T_static[3][0] << endl;;
 	}
 	return 0;
 }
