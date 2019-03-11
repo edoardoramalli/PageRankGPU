@@ -49,6 +49,7 @@ def manage_edge():
 
     with open("matrix_AA.csv", "w") as f:
         writer = csv.writer(f)
+        writer.writerow([num_of_vertex])
         writer.writerows(matrix_A)
 
     d = []
