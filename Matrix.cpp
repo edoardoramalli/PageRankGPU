@@ -30,4 +30,8 @@ double Matrix::getElement(int i, int j) {
 
 }
 
+double* Matrix::getrawdata(){
+    return mdata;
+}
+
 
