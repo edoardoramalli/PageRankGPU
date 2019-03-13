@@ -1,29 +1,28 @@
-
+import numpy as np
+from scipy.sparse import csr_matrix, diags, lil_matrix
+from scipy import sparse
 import csv
-from scipy.sparse import csr_matrix
+from tqdm import trange, tqdm
 
-path_edge = "/users/edoardo/downloads/pagerank_contest_edgelists/graph_small_e.edgelist"
-path_vertex = "/users/edoardo/downloads/pagerank_contest_edgelists/graph_small_v.edgelist"
+DAMPING = 0.85
+
+path_edge = "./pagerank_contest_edgelists/graph_small_e.edgelist"
+path_vertex = "./pagerank_contest_edgelists/graph_small_v.edgelist"
 
 
 
 
 def manage_vertex():
     dictionary = {}
-    number_of_vertex = 0
-    with open(path_vertex) as csv_file:
+    print("Creating dictionary...")
+    with open(path_vertex, encoding='utf-8') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter='*')
         for row in csv_reader:
             name_site = (row[0].replace('"', '')).strip()
             index_site = (row[2].replace('"', '')).strip()
             dictionary[name_site] = index_site
-            number_of_vertex = number_of_vertex + 1
-
-    # with open('vertex.csv', 'w') as csvFile:
-    #     writer = csv.writer(csvFile)
-    #     writer.writerows(dictionary)
-    #
-    # csvFile.close()
+    csv_file.close()
+    print("Done!")
 
     return dictionary
 
@@ -31,83 +30,75 @@ def manage_vertex():
 dictionary = manage_vertex()
 num_of_vertex = len(dictionary)
 
-matrix_A = [[0]]
-
-# matrix_A = [([i] for i in range(0, num_of_vertex) )]
-for i in range(1, num_of_vertex):
-    matrix_A.append([i])
-
 
 def manage_edge():
-    with open(path_edge) as csv_file:
+    row = []
+    column = []
+    data = []
+    print("Creating A matrix...")
+    with open(path_edge, encoding='utf-8') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=' ')
-        for row in csv_reader:
-            name_site = (row[0].replace('"', '')).strip()
-            reported_site = (row[1].replace('"', '')).strip()
-            index_of_name_site = int(dictionary.get(name_site))
-            index_of_reported_site = int(dictionary.get(reported_site))
+        for line in csv_reader:
+            name_site = (line[0].replace('"', '')).strip()
+            reported_site = (line[1].replace('"', '')).strip()
+            source_index = (dictionary.get(name_site))
+            destination_index = (dictionary.get(reported_site))
+            row.append(source_index)
+            column.append(destination_index)
+            data.append(1)
+    print("Done!")
+    csv_file.close()
 
-            matrix_A[index_of_name_site].append(index_of_reported_site)
+    data = np.array(data).astype(np.int32)
+    row = np.array(row).astype(np.int32)
+    column = np.array(column).astype(np.int32)
+    A = csr_matrix((data, (row,column)))
+    #print("Shape A : ",A.get_shape())
 
-
-
-    with open("matrix_AA.csv", "w") as f:
-        writer = csv.writer(f)
-        writer.writerow([num_of_vertex])
-        writer.writerows(matrix_A)
-
+    print("Creating d^-1 vector")
     d = []
-    for i in range(0, len(matrix_A)):
-        d.append(len(matrix_A[i]) - 1)
+    for row in A:
+        elements = row.count_nonzero()
+        d.append(1/elements if elements != 0 else 0)
+    D_inv = csr_matrix(diags(d,0))
+    print("Done!")
 
-    d_inv = []
-    for i in range(0, len(d)):
-        if d[i] != 0:
-            d_inv.append(round(1 / d[i], 6))
-        else:
-            d_inv.append(0)
+    print("Multiplying...")
+    T = D_inv * A
+    lil_t = lil_matrix(T)
+    print("Done!")
 
-    # with open("matrix_AD.csv", "w") as f:
-    #     writer = csv.writer(f, delimiter=',')
-    #     writer.writerow(d)
-    #
-    # with open("matrix_ADinv.csv", "w") as f:
-    #     writer = csv.writer(f, delimiter=',')
-    #     writer.writerow(d_inv)
+    a = num_of_vertex + 1 #fixes deep shit
+    uniform = (1/a) * np.ones(a)
 
-    return d_inv
+    # for i in trange(a):
+    #     if lil_t[i].count_nonzero() == 0:
+    #         lil_t[i] = uniform
+    
+    T = csr_matrix(lil_t)
 
+    print("Transposing T...")
+    T_trans = T.transpose()
+    T_trans.data = DAMPING*T_trans.data + (1-DAMPING)/a
+    print("Done!")
+    return T_trans
 
-d_inv = manage_edge()
+Tt = manage_edge()
 
-
-def computeT():
-    equiprobability = round(1 / num_of_vertex, 6)
-    m = csr_matrix((number_of_vertex, number_of_vertex), dtype=np.int32)
-    print ("equiporbo " + str(equiprobability))
-    for i in range(0, len(matrix_A)):
-        if i == 3:
-            if d_inv[i] == 0:
-                lista = [equiprobability,"#"]
-                print ("ESEMPIOppppppppppp")
-            else:
-                print(matrix_A[i].pop(0))
-                lista = d_inv[i] + matrix_A[i].pop(0)
-            matrix_A[i] = lista
-
-    for i in range (0,10):
-        print(matrix_A[i])
-
-    # with open("matrix_T.csv", "w") as f:
-    #     writer = csv.writer(f)
-    #     writer.writerow([num_of_vertex])
-    #     writer.writerows(matrix_A)
-
-
-computeT()
+with open("data.csv", "w") as f: 
+    writer = csv.writer(f,delimiter = ',')
+    writer.writerow([len(Tt.indptr)])
+    writer.writerow(Tt.indptr)
+    writer.writerow([len(Tt.indices)])
+    writer.writerow(Tt.indices)
+    writer.writerow([len(Tt.data)])
+    writer.writerow(Tt.data)
+f.close()
 
 # if __name__ == "__main__":
 #     #TODO add command line parameters
 #     # parser = argparse.ArgumentParser(description='Prepare dataset matrices')
 #     # parser.add_argument()
 #     pass
+
+

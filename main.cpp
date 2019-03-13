@@ -7,7 +7,7 @@
 
 using namespace std;
 
-#define CONNECTIONS "matrix_AA.csv"
+#define CONNECTIONS "data.csv"
 #define PROBABILITIES "prob.csv"
 
 // __global__ ourkernel(){
@@ -18,7 +18,7 @@ int main(){
 
    	ifstream connFile, probFile;
    	connFile.open(CONNECTIONS);
-	probFile.open(PROBABILITIES);
+	// probFile.open(PROBABILITIES);
 	vector<vector<double>> T_vector = {};
 	int *row_ptrs;
 	int *col_indices;
@@ -29,17 +29,18 @@ int main(){
 	int col_indices_number;
 	int conn_size;
 
-	if (probFile){
-		string line;
-		getline(probFile, line);
-		nodes_number = stoi(line);
-		probabilities = (double*) malloc(nodes_number*sizeof(double));
-		for (int i = 0; i < nodes_number; i++){
-			getline(probFile, line);
-			probabilities[i] = stod(line);
-		}
-		probFile.close();
-	}
+	// if (probFile){
+	// 	string line;
+	// 	getline(probFile, line);
+	// 	nodes_number = stoi(line);
+	// 	probabilities = (double*) malloc(nodes_number*sizeof(double));
+	// 	for (int i = 0; i < nodes_number; i++){
+	// 		getline(probFile, line);
+	// 		probabilities[i] = stod(line);
+	// 	}
+	// 	probFile.close();
+	// }
+	cout << "Load connections" << endl;;
 	if (connFile){
 		string line, element;
 		
@@ -63,9 +64,9 @@ int main(){
 
 		// Store column indices
 		getline(connFile, line);
-		stringstream ss(line);
+		stringstream tt(line);
 		for (int i = 0; i < col_indices_number; i++){
-			getline(ss, element, ',');
+			getline(tt, element, ',');
 			col_indices[i] = stoi(element);
 		}
 
@@ -76,9 +77,9 @@ int main(){
 
 		// Store column indices
 		getline(connFile, line);
-		stringstream ss(line);
+		stringstream uu(line);
 		for (int i = 0; i < conn_size; i++){
-			getline(ss, element, ',');
+			getline(uu, element, ',');
 			connections[i] = stoi(element);
 		}
 		connFile.close();
@@ -88,6 +89,8 @@ int main(){
 	for (int i = 0; i < nodes_number; i++){
 		pr[i] = 1/(double)nodes_number;
 	}
+	string hello;
+	cin >> hello;
 
 /* 	if (csvFile){
 		string line;
