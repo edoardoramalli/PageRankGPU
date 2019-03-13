@@ -2,27 +2,12 @@ import numpy as np
 from scipy.sparse import csr_matrix
 from scipy import sparse
 import csv
+from tqdm import trange
 
 
 
-a =[[0,1,0,0],[0,1,1,0],[1,0,0,0,0,0,1],[0],[0,1]]
-
-
-
-#m[0]= v
-
-
-
-
-# csr_matrix((data, (row_ind, col_ind)), [shape=(M, N)])
-# where data, row_ind and col_ind satisfy the relationship a[row_ind[k], col_ind[k]] = data[k].
-
-
-
-
-
-path_edge = "/users/edoardo/downloads/pagerank_contest_edgelists/graph_small_e.edgelist"
-path_vertex = "/users/edoardo/downloads/pagerank_contest_edgelists/graph_small_v.edgelist"
+path_edge = "./pagerank_contest_edgelists/graph_small_e.edgelist"
+path_vertex = "./pagerank_contest_edgelists/graph_small_v.edgelist"
 
 
 
@@ -103,7 +88,7 @@ d_inv = manage_edge()
 def computeT():
     equiprobability = 1 / num_of_vertex
     m = csr_matrix((num_of_vertex, num_of_vertex))
-    for i in range(0, len(matrix_A)):
+    for i in trange(0, len(matrix_A)):
         if d_inv[i] == 0:
             lista = [equiprobability,"-1"]
         else:
@@ -113,7 +98,6 @@ def computeT():
         for k in range(0, len(lista)):
             m[i,k] = lista[k]
 
-        matrix_A[i] = lista
 
 
     # with open("matrix_T.csv", "w") as f:
