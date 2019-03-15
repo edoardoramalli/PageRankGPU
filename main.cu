@@ -4,13 +4,19 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+//#include <cub/cub.cuh>
+//#include "Utilities.cuh"
 
 using namespace std;
 
 #define CONNECTIONS "data.csv"
+#define BLOCKSIZE 256
 
-__global__ void addReduceKernel(double *inData, double *outData, double *sharedData){
-	//extern __shared__ double sharedData[];
+//const int N = 256;
+
+
+__global__ void addReduceKernel(double *inData, double *outData){
+	extern __shared__ double sharedData[];
 
 	// Each thread copies one element to shared memory from global memory
 	unsigned int tid = threadIdx.x;
@@ -28,6 +34,38 @@ __global__ void addReduceKernel(double *inData, double *outData, double *sharedD
 	// write result for this block to global mem
 	if(tid == 0) outData[blockIdx.x] = sharedData[0];
 }
+
+template <unsigned int blockSize> __global__ void cuda_reduction(double *array_in, double *reduct, size_t array_len) {
+	  extern volatile __shared__ double sdata[];
+	  size_t  tid = threadIdx.x, gridSize = blockSize * gridDim.x, i = blockIdx.x * blockSize + tid;
+	  sdata[tid] = 0;
+	  while (i < array_len) {
+		sdata[tid] += array_in[i];
+		i += gridSize;
+	  }
+	  __syncthreads();
+	  if (blockSize >= 512) {
+		if (tid < 256) sdata[tid] += sdata[tid + 256];
+		__syncthreads();
+	  }
+	  if (blockSize >= 256) {
+		if (tid < 128) sdata[tid] += sdata[tid + 128];
+		__syncthreads();
+	  }
+	  if (blockSize >= 128) {
+		if (tid <  64) sdata[tid] += sdata[tid + 64];
+		__syncthreads();
+	  }
+	  if (tid < 32) {
+		if (blockSize >= 64) sdata[tid] += sdata[tid + 32];
+		if (blockSize >= 32) sdata[tid] += sdata[tid + 16];
+		if (blockSize >= 16) sdata[tid] += sdata[tid + 8];
+		if (blockSize >= 8)  sdata[tid] += sdata[tid + 4];
+		if (blockSize >= 4)  sdata[tid] += sdata[tid + 2];
+		if (blockSize >= 2)  sdata[tid] += sdata[tid + 1];
+	}
+	  if (tid == 0) reduct[blockIdx.x] = sdata[0];
+	}
 
 int main(){
 
@@ -89,27 +127,35 @@ int main(){
 	}
 
 	double pr[nodes_number];
+	double uniform_p = 1/(double)nodes_number;
+	double cpu_sum = 0;
 	for (int i = 0; i < nodes_number; i++){
-		pr[i] = 1/(double)nodes_number;
+		pr[i] = uniform_p;
+		cpu_sum += uniform_p;
 	}
 
-	double *pk, *shared_pk, *out_sum;
+	double *pk_gpu, *out;
+	cout << cpu_sum << endl;
+
+	cudaMallocManaged(&pk_gpu, nodes_number*sizeof(double));
+	//cudaMalloc(&pk, nodes_number*sizeof(double));
+	cudaMallocManaged(&out, nodes_number*sizeof(double));
+	for (int i = 0; i < nodes_number; i++) pk_gpu[i] = 1;
+	//cout << "hi" << endl;
+	cudaMemcpy(pk_gpu, pr, nodes_number*sizeof(double), cudaMemcpyHostToDevice);
+
+	cuda_reduction <BLOCKSIZE> <<< nodes_number/BLOCKSIZE, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(pk_gpu, out, nodes_number);
+	cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(out, pk_gpu, nodes_number);
+	//addReduceKernel<<<nodes_number/BLOCKSIZE, BLOCKSIZE, BLOCKSIZE*sizeof(double)>>>(pk_gpu, out);
+	//addReduceKernel<<<1, BLOCKSIZE, BLOCKSIZE*sizeof(double)>>>(out, pk_gpu);
+	cudaDeviceSynchronize();
+	cudaMemcpy(pr, pk_gpu, nodes_number*sizeof(double), cudaMemcpyDeviceToHost);
 	cout << pr[0] << endl;
 
-	cudaMalloc(&shared_pk, nodes_number*sizeof(double));
-	cudaMalloc(&pk, nodes_number*sizeof(double));
-	cudaMalloc(&out_sum, nodes_number*sizeof(double));
-	cudaMemcpy(pk, pr, nodes_number*sizeof(double), cudaMemcpyHostToDevice);
 
-	addReduceKernel<<<nodes_number/2, 2>>>(shared_pk, out_sum, pk);
-	
-	cudaMemcpy(pr, pk, nodes_number*sizeof(float), cudaMemcpyDeviceToHost);
-	cout << pr[0] << endl;
-
-
-	cudaFree(pk);
-	cudaFree(shared_pk);
-	cudaFree(out_sum);
+	//cudaFree(pk);
+	cudaFree(pk_gpu);
+	cudaFree(out);
 	
 	return 0;
 }
