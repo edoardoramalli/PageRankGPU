@@ -83,7 +83,16 @@ def manage_edge():
     print("Done!")
     return T_trans
 
+def compute_damping_matrix ():
+    # (1-d)|E|/|V|
+    a = (1 - DAMPING) * (1/num_of_vertex)
+    return a
+
+damping_matrix = compute_damping_matrix()
+
 Tt = manage_edge()
+Tt = DAMPING * Tt
+
 
 with open("data.csv", "w") as f: 
     writer = csv.writer(f,delimiter = ',')
@@ -93,7 +102,9 @@ with open("data.csv", "w") as f:
     writer.writerow(Tt.indices)
     writer.writerow([len(Tt.data)])
     writer.writerow(Tt.data)
+    writer.writerow([damping_matrix])
 f.close()
+
 
 # if __name__ == "__main__":
 #     #TODO add command line parameters
