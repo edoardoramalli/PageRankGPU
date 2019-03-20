@@ -86,13 +86,13 @@ template <unsigned int blockSize> __global__ void damping_reduction(double *arra
 }
 
 // Perform first step of pagerank row by column product
-template <unsigned int blockSize> __global__ void weighted_sum_partial(double *reduct, double *pagerank, 
-	int *column, double *mat_data, size_t array_len, size_t pk_len){
+template <unsigned int blockSize> __global__ void weighted_sum_partial(double *pagerank_in, double *reduct,
+	int *column, double *mat_data, size_t rows_number, size_t pk_len){
 	extern volatile __shared__ double sdata[];
 	size_t  tid = threadIdx.x, gridSize = blockSize * gridDim.x, i = blockIdx.x * blockSize + tid;
 	sdata[tid] = 0;
-	while (i < array_len) {
-		sdata[tid] += mat_data[i]*pagerank[column[i]];
+	while (i < rows_number) {
+		sdata[tid] += mat_data[i]*pagerank_in[column[i]];
 		i += gridSize;
 	}
 	__syncthreads();
@@ -120,27 +120,36 @@ template <unsigned int blockSize> __global__ void weighted_sum_partial(double *r
 	if (tid == 0) reduct[blockIdx.x] = sdata[0];
 }
 
-template <unsigned int blockSize> __global__ void handle_multiply(double *reduct, double *pagerank,
-	int *row_indices, int *columns, double *mat_data,
-	size_t indices_len, size_t len_data, size_t array_len, size_t pk_len){
-		for (int i = 0; i < indices_len-1; i++){
+template <unsigned int blockSize> __global__ void handle_multiply(double *old_pk, double *new_pk, double *damp,
+	int *row_indices, int *columns, double *mat_data, size_t pk_len){	
+		
+	int tid = blockIdx.x*blockSize +threadIdx.x;
+	
+	if (tid < pk_len){
 
-			// Probably adding divergence, would it be meaningful to perform it directly into GPU?
-			if (row_indices[i] == row_indices[i+1]){
-				// Uniform reduction, just an assignment
-			}
-			else{
-				// "True" pagerank product
-				int index = row_indices[i];
-				size_t data_number = row_indices[i+1] - index;
-				// We need to allocate space for reduction, also how to select blocksize = data_number?
-				int block_number = (data_number + blockSize - 1) / blockSize;
-				weighted_sum_partial < BLOCKSIZE > <<< block_number, BLOCKSIZE, BLOCKSIZE*sizeof(double) >>> (reduct, pagerank, 
-					&columns[index], &mat_data[index], data_number, pk_len);
-			}
+		// Sum "damping" contribution
+		new_pk[tid] = old_pk[tid] + *damp;
+
+		int row_len = row_indices[tid+1] - row_indices[tid];
+
+		// If there is data for the row...
+		if (row_len != 0){
+			double *mult, result;
+			cudaMalloc(&mult, sizeof(double)*row_len);
+
+			int index = row_indices[tid]; // Index of the first element of the row in columns array and data array
+			
+			int block_number = (row_len + BLOCKSIZE - 1) / BLOCKSIZE;
+			
+			weighted_sum_partial <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(old_pk, mult, &columns[index], &mat_data[index], row_len, pk_len);
+			cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(mult, &result, block_number);
+			cudaDeviceSynchronize();
+			
+			new_pk[tid] += result;
 		}
-
+	}
 }
+
 
 template <unsigned int blockSize> __global__ void check_termination(double *old_pk, double *new_pk){
 	extern volatile __shared__ bool terminate;
@@ -221,7 +230,8 @@ int main(){
 
 	int block_number = (nodes_number + BLOCKSIZE - 1) / BLOCKSIZE;
 
-	double *pk_gpu, *out, *uniform_gpu, *new_pk, *factor_gpu;
+	double *pk_gpu, *out, *uniform_gpu, *new_pk, *factor_gpu, *d_gpu;
+	int *w_gpu;
 	//cout << cpu_sum << endl;
 
 	cudaMallocManaged(&pk_gpu, nodes_number*sizeof(double));
@@ -229,26 +239,48 @@ int main(){
 	cudaMallocManaged(&uniform_gpu, sizeof(double));
 	cudaMallocManaged(&new_pk, sizeof(double)*nodes_number);
 	cudaMallocManaged(&factor_gpu, sizeof(double));
+	cudaMallocManaged(&w_gpu, sizeof(int)*10);
+	cudaMallocManaged(&d_gpu, sizeof(double)*10);
 
 	//for (int i = 0; i < nodes_number; i++) pk_gpu[i] = uniform_p;
-	for (int i = 0; i < nodes_number; i++) pr[i] = 1;
+	nodes_number = 10;
+	int w[nodes_number];
+	double d[nodes_number];
+	for (int i = 0; i < nodes_number; i++){
+		pr[i] = i;
+		if (i % 2 == 0){
+			w[i/2] = i;
+			d[i/2] = i;
+			cpu_sum += i*i;
+		}
+	} 
+
+	block_number = (nodes_number + BLOCKSIZE - 1) / BLOCKSIZE;
+
 	cudaMemcpy(pk_gpu, pr, nodes_number*sizeof(double), cudaMemcpyHostToDevice);
 	//cudaMemcpy(uniform_gpu, uniform_p, sizeof(double), cudaMemcpyHostToDevice);
-	cudaMemcpy(factor_gpu, &damping, sizeof(double), cudaMemcpyHostToDevice);
+	//cudaMemcpy(factor_gpu, &damping, sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpy(w_gpu, w, sizeof(int)*10, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_gpu, d, sizeof(double)*10, cudaMemcpyHostToDevice);
 
 	// Calculate constant weighted pagerank sum
 	
 	//cuda_reduction <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(pk_gpu, out, nodes_number);
 	//cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(out, pk_gpu, block_number);
 
-	cuda_reduction <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(pk_gpu, out, nodes_number);
-	damping_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>> (out, pk_gpu, factor_gpu, block_number);
-	//cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(out, pk_gpu, block_number);
+	//cuda_reduction <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(pk_gpu, out, nodes_number);
+	//damping_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>> (out, pk_gpu, factor_gpu, block_number);
 
+
+	weighted_sum_partial <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(pk_gpu, out, w_gpu, d_gpu, 5, nodes_number);
+	cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(out, pk_gpu, block_number);
 	cudaDeviceSynchronize();
 	cudaMemcpy(pr, pk_gpu, nodes_number*sizeof(double), cudaMemcpyDeviceToHost);
+
 	cout << pr[0] << endl;
-	cout << nodes_number*2 << endl;
+	cout << cpu_sum << endl;
+
+
 
 
 	//cudaFree(pk);
