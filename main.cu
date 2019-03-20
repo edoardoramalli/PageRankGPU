@@ -12,6 +12,61 @@ using namespace std;
 #define PRECISION 1000000
 #define THRESHOLD 0.000001
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline __host__ __device__ void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
+// Define this to turn on error checking
+#define CUDA_ERROR_CHECK
+
+#define CudaSafeCall( err ) __cudaSafeCall( err, __FILE__, __LINE__ )
+#define CudaCheckError()    __cudaCheckError( __FILE__, __LINE__ )
+
+inline void __cudaSafeCall( cudaError err, const char *file, const int line )
+{
+#ifdef CUDA_ERROR_CHECK
+    if ( cudaSuccess != err )
+    {
+        fprintf( stderr, "cudaSafeCall() failed at %s:%i : %s\n",
+                 file, line, cudaGetErrorString( err ) );
+        exit( -1 );
+    }
+#endif
+
+    return;
+}
+
+inline void __cudaCheckError( const char *file, const int line )
+{
+#ifdef CUDA_ERROR_CHECK
+    cudaError err = cudaGetLastError();
+    if ( cudaSuccess != err )
+    {
+        fprintf( stderr, "cudaCheckError() failed at %s:%i : %s\n",
+                 file, line, cudaGetErrorString( err ) );
+        exit( -1 );
+    }
+
+    // More careful checking. However, this will affect performance.
+    // Comment away if needed.
+    err = cudaDeviceSynchronize();
+    if( cudaSuccess != err )
+    {
+        fprintf( stderr, "cudaCheckError() with sync failed at %s:%i : %s\n",
+                 file, line, cudaGetErrorString( err ) );
+        exit( -1 );
+    }
+#endif
+
+    return;
+}
+
 //const int N = 256;
 
 // Default reduction kernel from seminar slides - check for possible optimizations
@@ -129,36 +184,74 @@ template <unsigned int blockSize> __global__ void handle_multiply(double *old_pk
 
 		// Sum "damping" contribution
 		new_pk[tid] = old_pk[tid] + *damp;
+		//printf("tid: %d", tid);
 
 		int row_len = row_indices[tid+1] - row_indices[tid];
-
 		// If there is data for the row...
 		if (row_len != 0){
-			double *mult, result;
+			double *mult, *result;
 			cudaMalloc(&mult, sizeof(double)*row_len);
+			cudaMalloc(&result, sizeof(double));
 
 			int index = row_indices[tid]; // Index of the first element of the row in columns array and data array
 			
 			int block_number = (row_len + BLOCKSIZE - 1) / BLOCKSIZE;
 			
 			weighted_sum_partial <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(old_pk, mult, &columns[index], &mat_data[index], row_len, pk_len);
-			cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(mult, &result, block_number);
+			cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(mult, result, block_number);
 			cudaDeviceSynchronize();
 			
-			new_pk[tid] += result;
+			new_pk[tid] += *result;
+			cudaFree(mult);
 		}
 	}
 }
 
 
-template <unsigned int blockSize> __global__ void check_termination(double *old_pk, double *new_pk){
-	extern volatile __shared__ bool terminate;
-	terminate = true;
+template <unsigned int blockSize> __global__ void check_termination(double *old_pk, double *new_pk, bool *loop){
 	int index = blockSize * gridDim.x + threadIdx.x;
 	if (fabs(floor( (new_pk[index] - old_pk[index]) * PRECISION ) / PRECISION) > THRESHOLD){
-				terminate = false;
-
+				*loop = true;
 	}
+}
+
+template <unsigned int blockSize> __global__ void sauron_eye(double *old_pk, double *new_pk, int *row_indices, int *columns,
+	double *data, double *damping, int *pk_len, int *data_len){
+
+	int block_number = (*pk_len + BLOCKSIZE - 1) / BLOCKSIZE;
+	printf("Block number: %d\n", block_number);
+	
+	double *damp_res, *out;
+	bool *loop;
+	cudaMalloc(&damp_res, sizeof(double));
+	cudaMalloc(&loop, sizeof(bool));
+	cudaMalloc(&out, sizeof(double)*BLOCKSIZE);
+	int i = 0;
+
+	*loop = true;
+
+	while (*loop){
+		printf("Iteration %d\n", i);
+		i++;
+		// Calculate "damping contribution"
+		printf("Begin damping\n");
+		cuda_reduction <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(old_pk, out, *pk_len);
+		damping_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>> (out, damp_res, damping, block_number);
+		cudaDeviceSynchronize();
+
+		printf("Begin multiply\n");
+		handle_multiply<BLOCKSIZE> <<<block_number, BLOCKSIZE>>> (old_pk, new_pk, damp_res, row_indices, columns, data, *pk_len);
+		cudaDeviceSynchronize();
+		
+		*loop = false;
+		printf("Begin check\n");
+		check_termination<BLOCKSIZE> <<<block_number, BLOCKSIZE>>>(old_pk, new_pk, loop);
+		cudaDeviceSynchronize();
+	}
+
+	cudaFree(damp_res);
+	cudaFree(loop);
+
 }
 
 int main(){
@@ -205,7 +298,7 @@ int main(){
 		conn_size = stoi(line);
 		connections = (int *) malloc(conn_size*sizeof(int));
 
-		// Store column indices
+		// Store data
 		getline(connFile, line);
 		stringstream uu(line);
 		for (int i = 0; i < conn_size; i++){
@@ -218,50 +311,36 @@ int main(){
 		damping = stod(line);
 		connFile.close();
 	}
-	//nodes_number = 1024;
 
 	double pr[nodes_number];
 	double uniform_p = 1/(double)nodes_number;
-	double cpu_sum = 0;
 	for (int i = 0; i < nodes_number; i++){
 		pr[i] = uniform_p;
-		//cpu_sum += uniform_p;
 	}
 
-	int block_number = (nodes_number + BLOCKSIZE - 1) / BLOCKSIZE;
+	double *pk_gpu, *new_pk, *factor_gpu, *d_gpu;
+	int *c_gpu, *r_gpu, *data_len, *pk_len;
 
-	double *pk_gpu, *out, *uniform_gpu, *new_pk, *factor_gpu, *d_gpu;
-	int *w_gpu;
-	//cout << cpu_sum << endl;
+	// Allocate device memory
 
 	cudaMallocManaged(&pk_gpu, nodes_number*sizeof(double));
-	cudaMallocManaged(&out, nodes_number*sizeof(double));
-	cudaMallocManaged(&uniform_gpu, sizeof(double));
 	cudaMallocManaged(&new_pk, sizeof(double)*nodes_number);
 	cudaMallocManaged(&factor_gpu, sizeof(double));
-	cudaMallocManaged(&w_gpu, sizeof(int)*10);
-	cudaMallocManaged(&d_gpu, sizeof(double)*10);
+	cudaMallocManaged(&c_gpu, sizeof(int)*col_indices_number);
+	cudaMallocManaged(&d_gpu, sizeof(double)*col_indices_number);
+	cudaMallocManaged(&r_gpu, sizeof(int)*(nodes_number+1));
+	cudaMallocManaged(&pk_len, sizeof(int));
+	cudaMallocManaged(&data_len, sizeof(int));
 
-	//for (int i = 0; i < nodes_number; i++) pk_gpu[i] = uniform_p;
-	nodes_number = 10;
-	int w[nodes_number];
-	double d[nodes_number];
-	for (int i = 0; i < nodes_number; i++){
-		pr[i] = i;
-		if (i % 2 == 0){
-			w[i/2] = i;
-			d[i/2] = i;
-			cpu_sum += i*i;
-		}
-	} 
-
-	block_number = (nodes_number + BLOCKSIZE - 1) / BLOCKSIZE;
+	// Populate device data from main memory
 
 	cudaMemcpy(pk_gpu, pr, nodes_number*sizeof(double), cudaMemcpyHostToDevice);
-	//cudaMemcpy(uniform_gpu, uniform_p, sizeof(double), cudaMemcpyHostToDevice);
-	//cudaMemcpy(factor_gpu, &damping, sizeof(double), cudaMemcpyHostToDevice);
-	cudaMemcpy(w_gpu, w, sizeof(int)*10, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_gpu, d, sizeof(double)*10, cudaMemcpyHostToDevice);
+	cudaMemcpy(factor_gpu, &damping, sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpy(c_gpu, col_indices, sizeof(int)*nodes_number, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_gpu, connections, sizeof(double)*nodes_number, cudaMemcpyHostToDevice);
+	cudaMemcpy(r_gpu, row_ptrs, sizeof(int)*(nodes_number+1), cudaMemcpyHostToDevice);
+	cudaMemcpy(pk_len, &nodes_number, sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(data_len, &conn_size, sizeof(int), cudaMemcpyHostToDevice);
 
 	// Calculate constant weighted pagerank sum
 	
@@ -272,22 +351,26 @@ int main(){
 	//damping_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>> (out, pk_gpu, factor_gpu, block_number);
 
 
-	weighted_sum_partial <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(pk_gpu, out, w_gpu, d_gpu, 5, nodes_number);
-	cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(out, pk_gpu, block_number);
+	// weighted_sum_partial <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(pk_gpu, out, c_gpu, d_gpu, 5, nodes_number);
+	// cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(out, pk_gpu, block_number);
+	// handle_multiply<BLOCKSIZE> <<<block_number, BLOCKSIZE>>> (pk_gpu, out, uniform_gpu, r_gpu, c_gpu, d_gpu, nodes_number);
+	// cudaDeviceSynchronize();
+
+	sauron_eye<1><<<1,1>>>(pk_gpu, new_pk, r_gpu, c_gpu, d_gpu, factor_gpu, pk_len, data_len);
+	CudaCheckError();
+	// gpuErrchk( cudaPeekAtLastError() );
+	// gpuErrchk( cudaDeviceSynchronize() );
 	cudaDeviceSynchronize();
-	cudaMemcpy(pr, pk_gpu, nodes_number*sizeof(double), cudaMemcpyDeviceToHost);
+	cudaMemcpy(pr, new_pk, nodes_number*sizeof(double), cudaMemcpyDeviceToHost);
 
-	cout << pr[0] << endl;
-	cout << cpu_sum << endl;
-
-
-
-
-	//cudaFree(pk);
-	cudaFree(uniform_gpu);
 	cudaFree(new_pk);
 	cudaFree(pk_gpu);
-	cudaFree(out);
+	cudaFree(r_gpu);
+	cudaFree(c_gpu);
+	cudaFree(d_gpu);
+	cudaFree(factor_gpu);
+	cudaFree(pk_len);
+	cudaFree(data_len);
 	
 	return 0;
 }
