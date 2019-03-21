@@ -29,6 +29,7 @@ def manage_vertex():
 
 dictionary = manage_vertex()
 num_of_vertex = len(dictionary)
+print(num_of_vertex)
 
 
 def manage_edge():
@@ -49,11 +50,16 @@ def manage_edge():
     print("Done!")
     csv_file.close()
 
+    
+
     data = np.array(data).astype(np.int32)
     row = np.array(row).astype(np.int32)
     column = np.array(column).astype(np.int32)
-    A = csr_matrix((data, (row,column)))
-    #print("Shape A : ",A.get_shape())
+
+    a = num_of_vertex + 1 #fixes deep shit
+
+    A = csr_matrix((data, (row,column)),(a, a))
+    print("Shape A : ",A.get_shape())
 
     print("Creating d^-1 vector")
     d = []
@@ -68,7 +74,6 @@ def manage_edge():
     lil_t = lil_matrix(T)
     print("Done!")
 
-    a = num_of_vertex + 1 #fixes deep shit
     uniform = (1/a) * np.ones(a)
 
     # for i in trange(a):

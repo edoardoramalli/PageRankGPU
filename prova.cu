@@ -11,6 +11,8 @@ template <unsigned int blockSize> __global__ void test(){
 }
 
 int main(){
-    test <2> <<<2,2>>>();
+    test <1> <<<1,2>>>();
+    cudaDeviceSynchronize();
     return 0;
+
 }

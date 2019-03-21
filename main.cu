@@ -12,61 +12,6 @@ using namespace std;
 #define PRECISION 1000000
 #define THRESHOLD 0.000001
 
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline __host__ __device__ void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
-{
-   if (code != cudaSuccess) 
-   {
-      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-      if (abort) exit(code);
-   }
-}
-
-// Define this to turn on error checking
-#define CUDA_ERROR_CHECK
-
-#define CudaSafeCall( err ) __cudaSafeCall( err, __FILE__, __LINE__ )
-#define CudaCheckError()    __cudaCheckError( __FILE__, __LINE__ )
-
-inline void __cudaSafeCall( cudaError err, const char *file, const int line )
-{
-#ifdef CUDA_ERROR_CHECK
-    if ( cudaSuccess != err )
-    {
-        fprintf( stderr, "cudaSafeCall() failed at %s:%i : %s\n",
-                 file, line, cudaGetErrorString( err ) );
-        exit( -1 );
-    }
-#endif
-
-    return;
-}
-
-inline void __cudaCheckError( const char *file, const int line )
-{
-#ifdef CUDA_ERROR_CHECK
-    cudaError err = cudaGetLastError();
-    if ( cudaSuccess != err )
-    {
-        fprintf( stderr, "cudaCheckError() failed at %s:%i : %s\n",
-                 file, line, cudaGetErrorString( err ) );
-        exit( -1 );
-    }
-
-    // More careful checking. However, this will affect performance.
-    // Comment away if needed.
-    err = cudaDeviceSynchronize();
-    if( cudaSuccess != err )
-    {
-        fprintf( stderr, "cudaCheckError() with sync failed at %s:%i : %s\n",
-                 file, line, cudaGetErrorString( err ) );
-        exit( -1 );
-    }
-#endif
-
-    return;
-}
-
 //const int N = 256;
 
 // Default reduction kernel from seminar slides - check for possible optimizations
@@ -104,8 +49,12 @@ template <unsigned int blockSize> __global__ void cuda_reduction(double *array_i
         if (blockSize >= 8) sdata[tid] += sdata[tid + 4];
         if (blockSize >= 4) sdata[tid] += sdata[tid + 2];
         if (blockSize >= 2) sdata[tid] += sdata[tid + 1];
-    }
-    if (tid == 0) reduct[blockIdx.x] = sdata[0];
+	}
+	
+    if (tid == 0){
+		//printf("%d, %d\n", blockIdx.x, array_len);
+		reduct[blockIdx.x] = sdata[0];
+	} 
 }
 
 template <unsigned int blockSize> __global__ void damping_reduction(double *array_in, double *reduct, double *factor, size_t array_len) {
@@ -142,11 +91,12 @@ template <unsigned int blockSize> __global__ void damping_reduction(double *arra
 
 // Perform first step of pagerank row by column product
 template <unsigned int blockSize> __global__ void weighted_sum_partial(double *pagerank_in, double *reduct,
-	int *column, double *mat_data, size_t rows_number, size_t pk_len){
+	int *column, double *mat_data, size_t row_len, size_t pk_len){
 	extern volatile __shared__ double sdata[];
 	size_t  tid = threadIdx.x, gridSize = blockSize * gridDim.x, i = blockIdx.x * blockSize + tid;
 	sdata[tid] = 0;
-	while (i < rows_number) {
+	while (i < row_len) {
+		if (column[i] >= pk_len) printf("%d\n", column[i]);
 		sdata[tid] += mat_data[i]*pagerank_in[column[i]];
 		i += gridSize;
 	}
@@ -164,7 +114,6 @@ template <unsigned int blockSize> __global__ void weighted_sum_partial(double *p
 		__syncthreads();
 	}
 	if (tid < 32) {
-		// Need to weight sum this too!
 		if (blockSize >= 64) sdata[tid] += sdata[tid + 32];
 		if (blockSize >= 32) sdata[tid] += sdata[tid + 16];
 		if (blockSize >= 16) sdata[tid] += sdata[tid + 8];
@@ -178,8 +127,7 @@ template <unsigned int blockSize> __global__ void weighted_sum_partial(double *p
 template <unsigned int blockSize> __global__ void handle_multiply(double *old_pk, double *new_pk, double *damp,
 	int *row_indices, int *columns, double *mat_data, size_t pk_len){	
 		
-	int tid = blockIdx.x*blockSize +threadIdx.x;
-	
+	int tid = blockIdx.x*blockSize +threadIdx.x;	
 	if (tid < pk_len){
 
 		// Sum "damping" contribution
@@ -188,14 +136,13 @@ template <unsigned int blockSize> __global__ void handle_multiply(double *old_pk
 
 		int row_len = row_indices[tid+1] - row_indices[tid];
 		// If there is data for the row...
-		if (row_len != 0){
+		if (row_len > 0){
 			double *mult, *result;
-			cudaMalloc(&mult, sizeof(double)*row_len);
-			cudaMalloc(&result, sizeof(double));
+			int block_number = (row_len + BLOCKSIZE - 1) / BLOCKSIZE;
+			cudaMalloc(&mult, sizeof(double)*block_number);
+			cudaMalloc(&result, sizeof(double)); //error??????????????
 
 			int index = row_indices[tid]; // Index of the first element of the row in columns array and data array
-			
-			int block_number = (row_len + BLOCKSIZE - 1) / BLOCKSIZE;
 			
 			weighted_sum_partial <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(old_pk, mult, &columns[index], &mat_data[index], row_len, pk_len);
 			cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(mult, result, block_number);
@@ -203,6 +150,8 @@ template <unsigned int blockSize> __global__ void handle_multiply(double *old_pk
 			
 			new_pk[tid] += *result;
 			cudaFree(mult);
+			cudaFree(result);
+			
 		}
 	}
 }
@@ -225,7 +174,8 @@ template <unsigned int blockSize> __global__ void sauron_eye(double *old_pk, dou
 	bool *loop;
 	cudaMalloc(&damp_res, sizeof(double));
 	cudaMalloc(&loop, sizeof(bool));
-	cudaMalloc(&out, sizeof(double)*BLOCKSIZE);
+	cudaMalloc(&out, sizeof(double)*block_number);
+	
 	int i = 0;
 
 	*loop = true;
@@ -233,6 +183,8 @@ template <unsigned int blockSize> __global__ void sauron_eye(double *old_pk, dou
 	while (*loop){
 		printf("Iteration %d\n", i);
 		i++;
+
+		printf("len :%d\n", *pk_len);
 		// Calculate "damping contribution"
 		printf("Begin damping\n");
 		cuda_reduction <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(double)>>>(old_pk, out, *pk_len);
@@ -334,6 +286,8 @@ int main(){
 
 	// Populate device data from main memory
 
+	cout << nodes_number << endl;
+
 	cudaMemcpy(pk_gpu, pr, nodes_number*sizeof(double), cudaMemcpyHostToDevice);
 	cudaMemcpy(factor_gpu, &damping, sizeof(double), cudaMemcpyHostToDevice);
 	cudaMemcpy(c_gpu, col_indices, sizeof(int)*nodes_number, cudaMemcpyHostToDevice);
@@ -357,9 +311,7 @@ int main(){
 	// cudaDeviceSynchronize();
 
 	sauron_eye<1><<<1,1>>>(pk_gpu, new_pk, r_gpu, c_gpu, d_gpu, factor_gpu, pk_len, data_len);
-	CudaCheckError();
-	// gpuErrchk( cudaPeekAtLastError() );
-	// gpuErrchk( cudaDeviceSynchronize() );
+
 	cudaDeviceSynchronize();
 	cudaMemcpy(pr, new_pk, nodes_number*sizeof(double), cudaMemcpyDeviceToHost);
 
