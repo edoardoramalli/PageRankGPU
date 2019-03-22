@@ -8,7 +8,7 @@
 using namespace std;
 
 #define CONNECTIONS "data.csv"
-#define BLOCKSIZE 32
+#define BLOCKSIZE 8
 #define PRECISION 1000000
 #define THRESHOLD 0.000001
 
@@ -107,7 +107,6 @@ template <unsigned int blockSize> __global__ void weighted_sum_partial(float *pa
 	size_t  tid = threadIdx.x, gridSize = blockSize * gridDim.x, i = blockIdx.x * blockSize + tid;
 	sdata[tid] = 0;
 	while (i < row_len) {
-		if (column[i] >= pk_len) printf("%d\n", column[i]);
 		sdata[tid] += mat_data[i]*pagerank_in[column[i]];
 		i += gridSize;
 	}
@@ -144,19 +143,20 @@ template <unsigned int blockSize> __global__ void handle_multiply(float *old_pk,
 		// Sum "damping" contribution
 		new_pk[tid] = old_pk[tid] + *damp;
 		//printf("tid: %d", tid);
-
-		int row_len = row_indices[tid+1] - row_indices[tid];
+		int index = row_indices[tid];  // Index of the first element of the row in columns array and data array
+		int row_len = row_indices[tid+1] - index;
 		// If there is data for the row...
 		if (row_len > 0){
 			float *mult, *result;
 			int block_number = (row_len + BLOCKSIZE - 1) / BLOCKSIZE;
 			cudaMalloc(&mult, sizeof(float)*block_number);
 			cudaMalloc(&result, sizeof(float));
-
-			int index = row_indices[tid]; // Index of the first element of the row in columns array and data array
 			
+			//printf("threads %d\n", row_len);
+
 			weighted_sum_partial <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>>(old_pk, mult, &columns[index], &mat_data[index], row_len, pk_len);
 			__syncthreads();
+			//printf("thread %d completed weighted sum!\n", tid);
 			cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>>(mult, result, block_number);
 			__syncthreads();
 			
