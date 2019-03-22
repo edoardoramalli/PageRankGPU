@@ -15,6 +15,17 @@ using namespace std;
 //const int N = 256;
 
 // Default reduction kernel from seminar slides - check for possible optimizations
+
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
 template <unsigned int blockSize> __global__ void cuda_reduction(double *array_in, double *reduct, size_t array_len) {
     extern volatile __shared__ double sdata[];
     
@@ -163,6 +174,7 @@ template <unsigned int blockSize> __global__ void check_termination(double *old_
 				*loop = true;
 	}
 }
+//sqrt(sum((y-x)**2))
 
 template <unsigned int blockSize> __global__ void sauron_eye(double *old_pk, double *new_pk, int *row_indices, int *columns,
 	double *data, double *damping, int *pk_len, int *data_len){
@@ -210,7 +222,8 @@ int main(){
 
    	ifstream connFile, probFile;
    	connFile.open(CONNECTIONS);
-	int *row_ptrs, *col_indices, *connections;
+	int *row_ptrs, *col_indices;
+	double *connections;
 	int nodes_number, col_indices_number, conn_size, row_len;
 	double damping;
 
@@ -248,14 +261,15 @@ int main(){
 		// Read data length
 		getline(connFile, line);
 		conn_size = stoi(line);
-		connections = (int *) malloc(conn_size*sizeof(int));
+		cout << "Conn size: " << conn_size << ", column_size:  " << col_indices_number << endl;
+		connections = (double *) malloc(conn_size*sizeof(double));
 
 		// Store data
 		getline(connFile, line);
 		stringstream uu(line);
 		for (int i = 0; i < conn_size; i++){
 			getline(uu, element, ',');
-			connections[i] = stoi(element);
+			connections[i] = stod(element);
 		}
 
 		// Save "damping" matrix factor
@@ -288,13 +302,21 @@ int main(){
 
 	cout << nodes_number << endl;
 
+
 	cudaMemcpy(pk_gpu, pr, nodes_number*sizeof(double), cudaMemcpyHostToDevice);
+	cout << "1" << endl;
 	cudaMemcpy(factor_gpu, &damping, sizeof(double), cudaMemcpyHostToDevice);
-	cudaMemcpy(c_gpu, col_indices, sizeof(int)*nodes_number, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_gpu, connections, sizeof(double)*nodes_number, cudaMemcpyHostToDevice);
+	cout << "2" << endl;
+	cudaMemcpy(c_gpu, col_indices, sizeof(int)*col_indices_number, cudaMemcpyHostToDevice);
+	cout << "3" << endl;
+	cudaMemcpy(d_gpu, connections, sizeof(double)*col_indices_number, cudaMemcpyHostToDevice);
+	cout << "4" << endl;
 	cudaMemcpy(r_gpu, row_ptrs, sizeof(int)*(nodes_number+1), cudaMemcpyHostToDevice);
+	cout << "5" << endl;
 	cudaMemcpy(pk_len, &nodes_number, sizeof(int), cudaMemcpyHostToDevice);
+	cout << "6" << endl;
 	cudaMemcpy(data_len, &conn_size, sizeof(int), cudaMemcpyHostToDevice);
+	cout << "7" << endl;
 
 	// Calculate constant weighted pagerank sum
 	
@@ -312,7 +334,8 @@ int main(){
 
 	sauron_eye<1><<<1,1>>>(pk_gpu, new_pk, r_gpu, c_gpu, d_gpu, factor_gpu, pk_len, data_len);
 
-	cudaDeviceSynchronize();
+	
+	gpuErrchk( cudaDeviceSynchronize() );
 	cudaMemcpy(pr, new_pk, nodes_number*sizeof(double), cudaMemcpyDeviceToHost);
 
 	cudaFree(new_pk);
