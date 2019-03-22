@@ -248,11 +248,18 @@ template <unsigned int blockSize> __global__ void sauron_eye(float *old_pk, floa
 	
 	int i = 0;
 
+	float * tmp;
+
+
 	*loop = true;
 
 	while (*loop){
 		printf("Iteration %d\n", i);
-		i++;
+		if (i%2!=0){
+			tmp = old_pk;
+			old_pk = new_pk;
+			new_pk = tmp;
+		}
 
 		//printf("len :%d\n", *pk_len);
 		// Calculate "damping contribution"
@@ -272,6 +279,7 @@ template <unsigned int blockSize> __global__ void sauron_eye(float *old_pk, floa
 		// template <unsigned int blockSize> __global__ void check_termination(float *old_pk, float *new_pk, float* out, float* result, bool *loop, 
 		// 	size_t pk_len, size_t out_len){
 		cudaDeviceSynchronize();
+		i++;
 	}
 
 	cudaFree(result);

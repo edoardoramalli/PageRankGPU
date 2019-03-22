@@ -37,6 +37,7 @@ def manage_edge():
     column = []
     data = []
     print("Creating A matrix...")
+    i = 0
     with open(path_edge, encoding='utf-8') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=' ')
         for line in csv_reader:
@@ -47,7 +48,8 @@ def manage_edge():
             row.append(source_index)
             column.append(destination_index)
             data.append(1)
-    print("Done!")
+            i = i +1
+    print("Done! Num of edge "+ str(i))
     csv_file.close()
 
     
@@ -59,7 +61,6 @@ def manage_edge():
     a = num_of_vertex + 1 #fixes deep shit
 
     A = csr_matrix((data, (row,column)),(a, a))
-    print("Shape A : ",A.get_shape())
 
     print("Creating d^-1 vector")
     d = []
@@ -98,6 +99,22 @@ damping_matrix = compute_damping_matrix()
 Tt = manage_edge()
 Tt = DAMPING * Tt
 
+print("Extract rows With Data")
+
+def row_with_data(ptr):
+    result = []
+    i = 0
+    s = ptr[0]
+    for k in range(0, len(ptr)-1):
+        f = s
+        s = ptr[k+1]
+        diff = s - f
+        for j in range(0, diff):
+            result.append(i)
+        i = i + 1
+    return result
+
+row_ptr_data = row_with_data(Tt.indptr)
 
 with open("data.csv", "w") as f: 
     writer = csv.writer(f,delimiter = ',')
@@ -108,6 +125,7 @@ with open("data.csv", "w") as f:
     writer.writerow([len(Tt.data)])
     writer.writerow(Tt.data)
     writer.writerow([damping_matrix])
+    writer.writerow(row_ptr_data)
 f.close()
 
 
