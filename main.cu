@@ -255,7 +255,7 @@ template <unsigned int blockSize> __global__ void sauron_eye(float *old_pk, floa
 
 	while (*loop){
 		printf("Iteration %d\n", i);
-		if (i%2!=0){
+		if (i!=0){
 			tmp = old_pk;
 			old_pk = new_pk;
 			new_pk = tmp;
