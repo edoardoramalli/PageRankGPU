@@ -1,7 +1,8 @@
 #include <stdio.h>
+#include <iostream>
 using namespace std;
 
-template <unsigned int blockSize> __device__ void warpReduce(volatile int *sdata, unsigned int tid) {
+template <unsigned int blockSize> __device__ void warpReduce(volatile float *sdata, unsigned int tid) {
     if (blockSize >= 64) sdata[tid] += sdata[tid + 32];
     if (blockSize >= 32) sdata[tid] += sdata[tid + 16];
     if (blockSize >= 16) sdata[tid] += sdata[tid + 8];
@@ -10,8 +11,8 @@ template <unsigned int blockSize> __device__ void warpReduce(volatile int *sdata
     if (blockSize >= 2) sdata[tid] += sdata[tid + 1];
 }
 
-template <unsigned int blockSize> __global__ void reduce6(int *g_idata, int *g_odata, unsigned int n) {
-    extern __shared__ int sdata[];
+template <unsigned int blockSize> __global__ void reduce6(float *g_idata, float *g_odata, unsigned int n) {
+    extern __shared__ float sdata[];
     unsigned int tid = threadIdx.x;
     unsigned int i = blockIdx.x*(blockSize*2) + tid; 
     unsigned int gridSize = blockSize*2*gridDim.x; 
@@ -22,12 +23,19 @@ template <unsigned int blockSize> __global__ void reduce6(int *g_idata, int *g_o
         i += gridSize; 
     } 
 
-    _syncthreads();
+    __syncthreads();
 
     if (blockSize >= 512) { if (tid < 256) { sdata[tid] += sdata[tid + 256]; } __syncthreads(); } 
     if (blockSize >= 256) { if (tid < 128) { sdata[tid] += sdata[tid + 128]; } __syncthreads(); } 
     if (blockSize >= 128) { if (tid < 64) { sdata[tid] += sdata[tid + 64]; } __syncthreads(); }
-    if (tid < 32) warpReduce(sdata, tid);
+    if (tid < 32){
+        if (blockSize >= 64) sdata[tid] += sdata[tid + 32];
+        if (blockSize >= 32) sdata[tid] += sdata[tid + 16];
+        if (blockSize >= 16) sdata[tid] += sdata[tid + 8];
+        if (blockSize >= 8) sdata[tid] += sdata[tid + 4];
+        if (blockSize >= 4) sdata[tid] += sdata[tid + 2];
+        if (blockSize >= 2) sdata[tid] += sdata[tid + 1];
+    } //warpReduce(sdata, tid);
     if (tid == 0) g_odata[blockIdx.x] = sdata[0];
 }
 
@@ -42,10 +50,10 @@ int main(){
 	float cpu_sum = 0.0f;
 	for(size_t i = 0; i < array_length; i++) {array_in[i] = 1; cpu_sum += 1;}
 	// Calls the reduction kernel
-	cuda_reduction < block_Size > 
+	reduce6 < block_Size > 
 		<<< grid_Size, block_Size, block_Size * sizeof(float) >>> 
 		(array_in,array_out, array_length);
-	cuda_reduction < block_Size > 
+	reduce6 < block_Size > 
 		<<< 1, block_Size, block_Size * sizeof(float) >>> 
 		(array_out, array_in,grid_Size);
 	cudaDeviceSynchronize();

@@ -8,7 +8,7 @@
 using namespace std;
 
 #define CONNECTIONS "data.csv"
-#define BLOCKSIZE 8
+#define BLOCKSIZE 4
 #define PRECISION 1000000
 #define THRESHOLD 0.000001
 
@@ -97,14 +97,17 @@ template <unsigned int blockSize> __global__ void damping_reduction(float *array
 		if (blockSize >= 4)  sdata[tid] += sdata[tid + 2];
 		if (blockSize >= 2)  sdata[tid] += sdata[tid + 1];
 	}
-	if (tid == 0) reduct[blockIdx.x] = sdata[0]*(*factor);
+	if (tid == 0) {
+		reduct[blockIdx.x] = sdata[0]*(*factor);
+		printf("shared 0 = %f\ndamping = %f\n", sdata[0], *factor);
+	}
 }
 
 // Perform first step of pagerank row by column product
 template <unsigned int blockSize> __global__ void weighted_sum_partial(float *pagerank_in, float *reduct,
 	int *column, float *mat_data, size_t row_len, size_t pk_len){
 	extern volatile __shared__ float sdata[];
-	size_t  tid = threadIdx.x, gridSize = blockSize * gridDim.x, i = blockIdx.x * blockSize + tid;
+	size_t  tid = threadIdx.x, gridSize = blockSize *gridDim.x, i = blockIdx.x * blockSize + tid;
 	sdata[tid] = 0;
 	while (i < row_len) {
 		sdata[tid] += mat_data[i]*pagerank_in[column[i]];
@@ -137,11 +140,10 @@ template <unsigned int blockSize> __global__ void weighted_sum_partial(float *pa
 template <unsigned int blockSize> __global__ void handle_multiply(float *old_pk, float *new_pk, float *damp,
 	int *row_indices, int *columns, float *mat_data, size_t pk_len){	
 		
-	int tid = blockIdx.x*blockSize +threadIdx.x;	
+	int tid = blockIdx.x * blockSize + threadIdx.x;	
 	if (tid < pk_len){
 
 		// Sum "damping" contribution
-		new_pk[tid] = old_pk[tid] + *damp;
 		//printf("tid: %d", tid);
 		int index = row_indices[tid];  // Index of the first element of the row in columns array and data array
 		int row_len = row_indices[tid+1] - index;
@@ -151,20 +153,18 @@ template <unsigned int blockSize> __global__ void handle_multiply(float *old_pk,
 			int block_number = (row_len + BLOCKSIZE - 1) / BLOCKSIZE;
 			cudaMalloc(&mult, sizeof(float)*block_number);
 			cudaMalloc(&result, sizeof(float));
-			
-			//printf("threads %d\n", row_len);
+			cudaDeviceSynchronize();
 
-			weighted_sum_partial <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>>(old_pk, mult, &columns[index], &mat_data[index], row_len, pk_len);
-			__syncthreads();
-			//printf("thread %d completed weighted sum!\n", tid);
-			cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>>(mult, result, block_number);
-			__syncthreads();
+			weighted_sum_partial <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>>(old_pk, mult, &columns[index], &mat_data[index], row_len, pk_len);
+			cudaDeviceSynchronize();
+			cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>>(mult, result, block_number);
+			cudaDeviceSynchronize();
 			
 			new_pk[tid] += *result;
 			cudaFree(mult);
 			cudaFree(result);
-			
 		}
+		new_pk[tid] += *damp;
 	}
 }
 
@@ -217,20 +217,17 @@ template <unsigned int blockSize> __global__ void check_termination(float *old_p
 	// int index = blockSize * gridDim.x + threadIdx.x;
 	int block_number = (*pk_len + BLOCKSIZE - 1) / BLOCKSIZE;
 
-	termination_reduction <BLOCKSIZE> <<<block_number, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>> (new_pk, old_pk, out, *pk_len);
-	__syncthreads();
+	termination_reduction <BLOCKSIZE> <<<block_number, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>> (new_pk, old_pk, out, *pk_len);
+	cudaDeviceSynchronize();
 	cuda_reduction <BLOCKSIZE> <<<1, BLOCKSIZE, BLOCKSIZE*sizeof(float) >>> (out, result, out_len);
-	
+	cudaDeviceSynchronize();
 	float error;
 	error = sqrtf(*result);
+	printf("Error  %f\n", error);
 	if (error > THRESHOLD) {
-		printf("Error  %f\n", error);
 		*loop = true;
 	}
-	
-	// if (fabs(floor( (new_pk[index] - old_pk[index]) * PRECISION ) / PRECISION) > THRESHOLD){
-	// 			*loop = true;
-	// }
+
 }
 //sqrt(sum((y-x)**2))
 
@@ -263,15 +260,16 @@ template <unsigned int blockSize> __global__ void sauron_eye(float *old_pk, floa
 
 		//printf("len :%d\n", *pk_len);
 		// Calculate "damping contribution"
-		printf("Begin damping\n");
+		printf("Begin damping with factor %f\n", *pk_len);
 		cuda_reduction <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>>(old_pk, out, *pk_len);
 		damping_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>> (out, result, damping, block_number);
 		cudaDeviceSynchronize();
 
+		printf("Damping: %.3f\n", *result);
+
 		printf("Begin multiply\n");
 		handle_multiply<BLOCKSIZE> <<<block_number, BLOCKSIZE>>> (old_pk, new_pk, result, row_indices, columns, data, *pk_len);
-		cudaDeviceSynchronize();
-		
+		cudaDeviceSynchronize();		
 		*loop = false;
 		printf("Begin check\n");
 		check_termination<1> <<<1, 1>>>(old_pk, new_pk, out, result, loop, pk_len, block_number);
@@ -280,6 +278,7 @@ template <unsigned int blockSize> __global__ void sauron_eye(float *old_pk, floa
 		// 	size_t pk_len, size_t out_len){
 		cudaDeviceSynchronize();
 		i++;
+		break;
 	}
 
 	cudaFree(result);
@@ -287,6 +286,11 @@ template <unsigned int blockSize> __global__ void sauron_eye(float *old_pk, floa
 	cudaFree(out);
 
 }
+
+template <unsigned int blockSize> __global__ void piselli(float *data1) {
+    printf("%f", *data1);
+}
+
 
 int main(){
 
@@ -339,17 +343,18 @@ int main(){
 		stringstream uu(line);
 		for (int i = 0; i < conn_size; i++){
 			getline(uu, element, ',');
-			connections[i] = stod(element);
+			connections[i] = stof(element);
 		}
 
 		// Save "damping" matrix factor
 		getline(connFile, line);
-		damping = stod(line);
+		damping = stof(line);
 		connFile.close();
 	}
 
 	float pr[nodes_number];
 	float uniform_p = 1/(float)nodes_number;
+	// cout << "Uniform_p " << uniform_p << endl;
 	for (int i = 0; i < nodes_number; i++){
 		pr[i] = uniform_p;
 	}
@@ -361,7 +366,7 @@ int main(){
 
 	cudaMalloc(&pk_gpu, nodes_number*sizeof(float));
 	cudaMalloc(&new_pk, sizeof(float)*nodes_number);
-	cudaMalloc(&factor_gpu, sizeof(float));
+	cudaMallocManaged(&factor_gpu, sizeof(float));
 	cudaMalloc(&c_gpu, sizeof(int)*col_indices_number);
 	cudaMalloc(&d_gpu, sizeof(float)*col_indices_number);
 	cudaMalloc(&r_gpu, sizeof(int)*(nodes_number+1));
@@ -370,12 +375,18 @@ int main(){
 
 	// Populate device data from main memory
 
-	cout << nodes_number << endl;
+	//cout << nodes_number << endl;
+	cout << "damp: " << damping << endl;
 
+	float stica = damping;
+	*factor_gpu = 5;
+
+
+	//cudaMemcpy(f_gpu, &f, sizeof(float),cudaMemcpyHostToDevice);
 
 	cudaMemcpy(pk_gpu, pr, nodes_number*sizeof(float), cudaMemcpyHostToDevice);
 	//cout << "1" << endl;
-	cudaMemcpy(factor_gpu, &damping, sizeof(float), cudaMemcpyHostToDevice);
+	//gpuErrchk(cudaMemcpy(factor_gpu, &stica, sizeof(float), cudaMemcpyHostToDevice));
 	//cout << "2" << endl;
 	cudaMemcpy(c_gpu, col_indices, sizeof(int)*col_indices_number, cudaMemcpyHostToDevice);
 	// cout << "3" << endl;
@@ -387,14 +398,23 @@ int main(){
 	// cout << "6" << endl;
 	cudaMemcpy(data_len, &conn_size, sizeof(int), cudaMemcpyHostToDevice);
 	// cout << "7" << endl;
+	cout << "damp: " << damping << endl;
 
+	piselli<1><<<1 , 1>>>(factor_gpu);
+	gpuErrchk(cudaDeviceSynchronize());
+	
+	
 
-	sauron_eye<1><<<1,1>>>(pk_gpu, new_pk, r_gpu, c_gpu, d_gpu, factor_gpu, pk_len, data_len);
+	//sauron_eye<1><<<1,1>>>(pk_gpu, new_pk, r_gpu, c_gpu, d_gpu, factor_gpu, pk_len, data_len);
 
 	gpuErrchk( cudaDeviceSynchronize() );
 
 	// Copy data back
 	cudaMemcpy(pr, new_pk, nodes_number*sizeof(float), cudaMemcpyDeviceToHost);
+
+	// for (int i = 0; i < 100; i++){
+	// 	cout << pr[i] << endl;
+	// }
 
 	cudaFree(new_pk);
 	cudaFree(pk_gpu);
