@@ -52,6 +52,8 @@ def manage_edge():
     print("Done! Num of edge "+ str(i))
     csv_file.close()
 
+
+
     
 
     data = np.array(data).astype(np.int32)
@@ -94,27 +96,44 @@ def compute_damping_matrix ():
     a = (1 - DAMPING) * (1/num_of_vertex)
     return a
 
+print ("Compute Damping Matrix (Single Value)")
+
 damping_matrix = compute_damping_matrix()
 
 Tt = manage_edge()
+print("Multiply T * Damping")
 Tt = DAMPING * Tt
 
-print("Extract rows With Data")
 
-def row_with_data(ptr):
+# def row_with_data(vector):
+#     old = 0
+#     new = 1
+#     result = []
+#     for i in range(0, len(vector) - 1):
+#         if vector[old]!=vector[new]:
+#             result.append(old)
+#         old = old + 1
+#         new = new + 1
+#     return result
+
+def compute_empty_row(vector):
+    old = 0
+    new = 1
     result = []
-    i = 0
-    s = ptr[0]
-    for k in range(0, len(ptr)-1):
-        f = s
-        s = ptr[k+1]
-        diff = s - f
-        for j in range(0, diff):
-            result.append(i)
-        i = i + 1
+    for i in range(0, len(vector) - 1):
+        if vector[old]==vector[new]:
+            result.append(old)
+        old = old + 1
+        new = new + 1
     return result
 
-row_ptr_data = row_with_data(Tt.indptr)
+#row_ptr_data = row_with_data(Tt.indptr)
+#pippo = len(row_ptr_data)
+print("Compute empty rows")
+empty_row = compute_empty_row(Tt.indptr)
+lunghezza = len(empty_row)
+
+print("Writing CSV...")
 
 with open("data.csv", "w") as f: 
     writer = csv.writer(f,delimiter = ',')
@@ -125,7 +144,8 @@ with open("data.csv", "w") as f:
     writer.writerow([len(Tt.data)])
     writer.writerow(Tt.data)
     writer.writerow([damping_matrix])
-    writer.writerow(row_ptr_data)
+    writer.writerow([lunghezza])
+    writer.writerow(empty_row)
 f.close()
 
 
