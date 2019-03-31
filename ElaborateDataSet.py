@@ -26,8 +26,9 @@ class Bcolors:
 def parse_input(argv):
     path_edge = ""
     path_vertex = ""
+    destination_path = ""
     try:
-        opts, args = getopt.getopt(argv, "sfv:e:", ["efile=", "vfile="])
+        opts, args = getopt.getopt(argv, "sfv:e:o:", ["efile=", "vfile=", "ofile="])
     except getopt.GetoptError:
         print(Bcolors.FAIL + "Syntax Error" + Bcolors.ENDC)
         sys.exit(2)
@@ -36,23 +37,33 @@ def parse_input(argv):
             print(Bcolors.OKGREEN + "Default Path Full Selected" + Bcolors.ENDC)
             path_edge = "./pagerank_contest_edgelists/graph_full_e.edgelist"
             path_vertex = "./pagerank_contest_edgelists/graph_full_v.edgelist"
+            destination_path = "data_full.csv"
         elif opt == '-s':
             print(Bcolors.OKGREEN + "Default Path Small Selected" + Bcolors.ENDC)
             path_edge = "./pagerank_contest_edgelists/graph_small_e.edgelist"
             path_vertex = "./pagerank_contest_edgelists/graph_small_v.edgelist"
+            destination_path = "data_small.csv"
         elif opt in ("-v", "--vfile"):
             path_vertex = arg
         elif opt in ("-e", "--efile"):
             path_edge = arg
-    if (path_edge == "") or (path_vertex == ""):
-        print(Bcolors.FAIL + "Missing Path" + Bcolors.ENDC)
+        elif opt in ("-o", "--ofile"):
+            destination_path = arg
+    if path_edge == "":
+        print(Bcolors.FAIL + "Missing Path Edge" + Bcolors.ENDC)
         exit(2)
-    return path_edge, path_vertex
+    if path_vertex == "":
+        print(Bcolors.FAIL + "Missing Path Vertex" + Bcolors.ENDC)
+        exit(2)
+    if destination_path == "":
+        print(Bcolors.FAIL + "Missing Path Destination" + Bcolors.ENDC)
+        exit(2)
+    return path_edge, path_vertex, destination_path
 
 
 def manage_vertex(path_vertex):
     dictionary = {}
-    print(Bcolors.OKBLUE + "Creating dictionary..." + Bcolors.ENDC)
+    print(Bcolors.OKBLUE + "Creating Dictionary..." + Bcolors.ENDC)
     with open(path_vertex, encoding='utf-8') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter='*')
         tmp = -1
@@ -82,7 +93,7 @@ def manage_edge(path_edge, dictionary, num_of_vertex):
             column.append(destination_index)
             data.append(1)
             i = i + 1
-    print(Bcolors.OKGREEN + "Num of edge " + str(i) + Bcolors.ENDC)
+    print(Bcolors.OKGREEN + "Number of Edge : " + str(i) + Bcolors.ENDC)
     csv_file.close()
 
     data = np.array(data).astype(np.int32)
@@ -93,14 +104,14 @@ def manage_edge(path_edge, dictionary, num_of_vertex):
 
     a_matrix = csr_matrix((data, (row, column)), (dimension, dimension))
 
-    print(Bcolors.OKBLUE + "Creating d^-1 vector" + Bcolors.ENDC)
+    print(Bcolors.OKBLUE + "Creating d^-1 vector..." + Bcolors.ENDC)
     d = []
     for row in tqdm(a_matrix):
         elements = row.count_nonzero()
         d.append(1 / elements if elements != 0 else 0)
     d_inv = csr_matrix(diags(d, 0))
 
-    print(Bcolors.OKBLUE + "Multiplying d_inv * a_matrix." + Bcolors.ENDC)
+    print(Bcolors.OKBLUE + "Multiplying d_inv * a_matrix..." + Bcolors.ENDC)
     t_matrix = d_inv * a_matrix
     lil_t = lil_matrix(t_matrix)
 
@@ -131,28 +142,28 @@ def compute_empty_row(vector):
 
 
 def main(argv):
-    path_edge, path_vertex = parse_input(argv)
+    path_edge, path_vertex, destination_path = parse_input(argv)
 
     dictionary, num_of_vertex = manage_vertex(path_vertex)
 
-    print(Bcolors.OKGREEN + "Number of Vertex " + str(num_of_vertex) + Bcolors.ENDC)
+    print(Bcolors.OKGREEN + "Number of Vertex : " + str(num_of_vertex) + Bcolors.ENDC)
 
     t = manage_edge(path_edge, dictionary, num_of_vertex)
 
-    print(Bcolors.OKBLUE + "Compute Damping Matrix (Single Value)" + Bcolors.ENDC)
+    print(Bcolors.OKBLUE + "Compute Damping Matrix (Single Value)..." + Bcolors.ENDC)
 
     damping_matrix = compute_damping_matrix(num_of_vertex)
 
-    print(Bcolors.OKBLUE + "Multiply T * Damping" + Bcolors.ENDC)
+    print(Bcolors.OKBLUE + "Multiply T * Damping..." + Bcolors.ENDC)
     t = DAMPING * t
 
-    print(Bcolors.OKBLUE + "Compute Empty Row" + Bcolors.ENDC)
+    print(Bcolors.OKBLUE + "Compute Empty Row..." + Bcolors.ENDC)
     empty_row = compute_empty_row(t.indptr)
     lunghezza = len(empty_row)
 
-    print(Bcolors.OKBLUE + "Write CSV" + Bcolors.ENDC)
+    print(Bcolors.OKGREEN + "Write CSV" + Bcolors.ENDC)
 
-    with open("data.csv", "w") as f:
+    with open(destination_path, "w") as f:
         writer = csv.writer(f, delimiter=',')
         writer.writerow([len(t.indptr)])
         writer.writerow(t.indptr)
