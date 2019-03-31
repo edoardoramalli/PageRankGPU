@@ -2,14 +2,14 @@
 #include "handleDataset.h"
 #include <time.h>       /* time_t, time (for timestamp in second) */
 #include <sys/timeb.h>  /* ftime, timeb (for timestamp in millisecond) */
-#include "cuda_reduce.cuh"
+#include "cuda_reduce.cu"
 
 //#include <cub/cub.cuh>
 //#include "Utilities.cuh"
 
 using namespace std;
 
-#define CONNECTIONS "data.csv"
+#define CONNECTIONS "data_small.csv"
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
