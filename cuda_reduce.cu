@@ -1,7 +1,7 @@
 
 #include <stdio.h>
 
-#define BLOCKSIZE 16
+#define BLOCKSIZE 32
 #define PRECISION 1000000
 #define THRESHOLD 0.000001
 #define DAMPING_F 0.85

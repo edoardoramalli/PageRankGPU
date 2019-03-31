@@ -110,13 +110,18 @@ int main(){
 	loadDataset(datasetPath, row_ptrs, col_indices, connections, empty_cols);
 
 	cout << "Allocate and initialize PageRank" << endl;
+
+	cout << "Nodes: " << nodes_number << endl;
 	
-	float pr[nodes_number];
+	float *pr = (float*) malloc(nodes_number*sizeof(float));
 	float uniform_p = 1/(float)nodes_number;
 	// cout << "Uniform_p " << uniform_p << endl;
 	for (int i = 0; i < nodes_number; i++){
 		pr[i] = uniform_p;
 	}
+
+	cout << "Finished allocation" << endl;
+
 
 	// GPU variables
 	float *pk_gpu, *new_pk, *factor_gpu, *d_gpu;
@@ -222,7 +227,7 @@ int main(){
 		cout << pr[i] << endl; 
 	}
 
-	storePagerank(pr, nodes_number, "pk_result.csv");
+	storePagerank(pr, nodes_number, "pk_result_full.csv");
 	
 	return 0;
 }
