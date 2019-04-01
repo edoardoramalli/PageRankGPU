@@ -63,6 +63,14 @@ def parse_input(argv):
         exit(2)
     return path_edge, path_vertex, destination_path, do_empty
 
+def compute_empty_row(vector):
+    result = []
+    for i in range(0, len(vector) - 1):
+        if vector[i] == vector[i+1]:
+            result.append(i)
+    return result
+
+
 
 def manage_vertex(path_vertex):
     dictionary = {}
@@ -116,10 +124,12 @@ def manage_edge(path_edge, dictionary, num_of_vertex):
 
     t_matrix = csr_matrix(lil_t)
 
+    empty = compute_empty_row(t_matrix.indptr)
+
     print(Bcolors.OKBLUE + "Transposing T..." + Bcolors.ENDC)
     t_trans = t_matrix.transpose()
-    t_trans.data = DAMPING * t_trans.data + (1 - DAMPING) / dimension
-    return t_trans
+    #t_trans.data = DAMPING * t_trans.data + (1 - DAMPING) / dimension
+    return t_trans, empty
 
 
 def compute_damping_matrix(num_of_vertex):
@@ -127,18 +137,6 @@ def compute_damping_matrix(num_of_vertex):
     a = (1 - DAMPING) * (1 / int(num_of_vertex))
     # qua prima non c'era il + 1
     return a
-
-
-def compute_empty_row(vector):
-    old = 0
-    new = 1
-    result = []
-    for i in range(0, len(vector) - 1):
-        if vector[old] == vector[new]:
-            result.append(old)
-        old = old + 1
-        new = new + 1
-    return result
 
 
 def manage_time(rr):
@@ -160,7 +158,7 @@ def main(argv):
 
     print(Bcolors.OKGREEN + "Number of Vertex : " + str(num_of_vertex) + Bcolors.ENDC)
 
-    t = manage_edge(path_edge, dictionary, num_of_vertex)
+    t, empty_row = manage_edge(path_edge, dictionary, num_of_vertex)
 
     print(Bcolors.OKBLUE + "Compute Damping Matrix (Single Value)..." + Bcolors.ENDC)
 
@@ -170,12 +168,12 @@ def main(argv):
     t = DAMPING * t
 
     lunghezza = []
-    empty_row = []
+    #empty_row = []
 
-    if empty:
-        print(Bcolors.OKBLUE + "Compute Empty Row..." + Bcolors.ENDC)
-        empty_row = compute_empty_row(t.indptr)
-        lunghezza = len(empty_row)
+    # if empty:
+    #print(Bcolors.OKBLUE + "Compute Empty Row..." + Bcolors.ENDC)
+    #empty_row = compute_empty_row(t.indptr)
+    lunghezza = len(empty_row)
 
     print(Bcolors.OKGREEN + "Write CSV" + Bcolors.ENDC)
 
@@ -188,9 +186,9 @@ def main(argv):
         writer.writerow([len(t.data)])
         writer.writerow(t.data)
         writer.writerow([damping_matrix])
-        if empty:
-            writer.writerow([lunghezza])
-            writer.writerow(empty_row)
+        # if empty:
+        writer.writerow([lunghezza])
+        writer.writerow(empty_row)
 
     f.close()
 
