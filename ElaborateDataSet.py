@@ -3,7 +3,6 @@ import csv
 import sys
 import getopt
 import time
-
 from tqdm import tqdm
 
 DAMPING = 0.85
@@ -79,7 +78,6 @@ def manage_vertex(path_vertex):
             name_site = (row[0].replace('"', '')).strip()
             dictionary[name_site] = it
             it = it + 1
-            # 1,3,12379,500905,557405,5,7,496659,9,11,13,
     csv_file.close()
     return dictionary, int(it)
 
@@ -125,7 +123,7 @@ def manage_edge(path_edge, dictionary, num_of_vertex):
 
 def compute_damping_matrix(num_of_vertex):
     # (1-d)|E|/|V|
-    a = (1 - DAMPING) * (1 / int(num_of_vertex))
+    a = (1 - DAMPING) / num_of_vertex
     # qua prima non c'era il + 1
     return a
 
@@ -160,7 +158,7 @@ def main(argv):
 
     print(Bcolors.OKBLUE + "Compute Empty Row..." + Bcolors.ENDC)
     empty_row = compute_empty_row(t_before_trans.indptr)
-    lunghezza = len(empty_row)
+    lunghezza_empty_row = len(empty_row)
 
     print(Bcolors.OKGREEN + "Write CSV" + Bcolors.ENDC)
 
@@ -173,7 +171,7 @@ def main(argv):
         writer.writerow([len(t.data)])
         writer.writerow(t.data)
         writer.writerow([damping_matrix])
-        writer.writerow([lunghezza])
+        writer.writerow([lunghezza_empty_row])
         writer.writerow(empty_row)
 
     f.close()
