@@ -1,8 +1,8 @@
-import numpy as np
 from scipy.sparse import csr_matrix, diags, lil_matrix
 import csv
 import sys
 import getopt
+import time
 
 from tqdm import tqdm
 
@@ -27,8 +27,9 @@ def parse_input(argv):
     path_edge = ""
     path_vertex = ""
     destination_path = ""
+    do_empty = False
     try:
-        opts, args = getopt.getopt(argv, "sfv:e:o:", ["efile=", "vfile=", "ofile="])
+        opts, args = getopt.getopt(argv, "sfv:e:o:w", ["efile=", "vfile=", "ofile=", "wfile="])
     except getopt.GetoptError:
         print(Bcolors.FAIL + "Syntax Error" + Bcolors.ENDC)
         sys.exit(2)
@@ -49,6 +50,8 @@ def parse_input(argv):
             path_edge = arg
         elif opt in ("-o", "--ofile"):
             destination_path = arg
+        elif opt in ("-w", "--wfile"):
+            do_empty = True
     if path_edge == "":
         print(Bcolors.FAIL + "Missing Path Edge" + Bcolors.ENDC)
         exit(2)
@@ -58,7 +61,7 @@ def parse_input(argv):
     if destination_path == "":
         print(Bcolors.FAIL + "Missing Path Destination" + Bcolors.ENDC)
         exit(2)
-    return path_edge, path_vertex, destination_path
+    return path_edge, path_vertex, destination_path, do_empty
 
 
 def manage_vertex(path_vertex):
@@ -66,14 +69,14 @@ def manage_vertex(path_vertex):
     print(Bcolors.OKBLUE + "Creating Dictionary..." + Bcolors.ENDC)
     with open(path_vertex, encoding='utf-8') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter='*')
-        tmp = -1
+        it = 0
         for row in csv_reader:
             name_site = (row[0].replace('"', '')).strip()
-            index_site = (row[2].replace('"', '')).strip()
-            dictionary[name_site] = index_site
-            tmp = index_site
+            dictionary[name_site] = it
+            it = it + 1
+            # 1,3,12379,500905,557405,5,7,496659,9,11,13,
     csv_file.close()
-    return dictionary, int(tmp)
+    return dictionary, int(it)
 
 
 def manage_edge(path_edge, dictionary, num_of_vertex):
@@ -96,11 +99,7 @@ def manage_edge(path_edge, dictionary, num_of_vertex):
     print(Bcolors.OKGREEN + "Number of Edge : " + str(i) + Bcolors.ENDC)
     csv_file.close()
 
-    data = np.array(data).astype(np.int32)
-    row = np.array(row).astype(np.int32)
-    column = np.array(column).astype(np.int32)
-
-    dimension = int(num_of_vertex) + 1  # fixes deep
+    dimension = int(num_of_vertex)
 
     a_matrix = csr_matrix((data, (row, column)), (dimension, dimension))
 
@@ -126,6 +125,7 @@ def manage_edge(path_edge, dictionary, num_of_vertex):
 def compute_damping_matrix(num_of_vertex):
     # (1-d)|E|/|V|
     a = (1 - DAMPING) * (1 / int(num_of_vertex))
+    # qua prima non c'era il + 1
     return a
 
 
@@ -141,8 +141,20 @@ def compute_empty_row(vector):
     return result
 
 
+def manage_time(rr):
+    if rr <= 60:
+        t = round(rr, 2)
+        return "Elapsed Time : " + str(t) + " sec."
+    elif rr < 60 * 60:
+        t = round(rr / 60, 2)
+        return "Elapsed Time : " + str(t) + " min."
+    else:
+        t = round(rr / (60 * 60), 2)
+        return "Elapsed Time : " + str(t) + " h."
+
+
 def main(argv):
-    path_edge, path_vertex, destination_path = parse_input(argv)
+    path_edge, path_vertex, destination_path, empty = parse_input(argv)
 
     dictionary, num_of_vertex = manage_vertex(path_vertex)
 
@@ -157,13 +169,17 @@ def main(argv):
     print(Bcolors.OKBLUE + "Multiply T * Damping..." + Bcolors.ENDC)
     t = DAMPING * t
 
-    print(Bcolors.OKBLUE + "Compute Empty Row..." + Bcolors.ENDC)
-    empty_row = compute_empty_row(t.indptr)
-    lunghezza = len(empty_row)
+    lunghezza = []
+    empty_row = []
+
+    if empty:
+        print(Bcolors.OKBLUE + "Compute Empty Row..." + Bcolors.ENDC)
+        empty_row = compute_empty_row(t.indptr)
+        lunghezza = len(empty_row)
 
     print(Bcolors.OKGREEN + "Write CSV" + Bcolors.ENDC)
 
-    with open(destination_path, "w") as f:
+    with open(destination_path, "w+") as f:
         writer = csv.writer(f, delimiter=',')
         writer.writerow([len(t.indptr)])
         writer.writerow(t.indptr)
@@ -172,10 +188,15 @@ def main(argv):
         writer.writerow([len(t.data)])
         writer.writerow(t.data)
         writer.writerow([damping_matrix])
-        writer.writerow([lunghezza])
-        writer.writerow(empty_row)
+        if empty:
+            writer.writerow([lunghezza])
+            writer.writerow(empty_row)
+
     f.close()
 
 
 if __name__ == "__main__":
+    start = time.time()
     main(sys.argv[1:])
+    end = time.time()
+    print(Bcolors.HEADER + manage_time(end-start) + Bcolors.ENDC)
