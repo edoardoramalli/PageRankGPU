@@ -27,9 +27,8 @@ def parse_input(argv):
     path_edge = ""
     path_vertex = ""
     destination_path = ""
-    do_empty = False
     try:
-        opts, args = getopt.getopt(argv, "sfv:e:o:w", ["efile=", "vfile=", "ofile=", "wfile="])
+        opts, args = getopt.getopt(argv, "sfv:e:o:", ["efile=", "vfile=", "ofile="])
     except getopt.GetoptError:
         print(Bcolors.FAIL + "Syntax Error" + Bcolors.ENDC)
         sys.exit(2)
@@ -50,8 +49,6 @@ def parse_input(argv):
             path_edge = arg
         elif opt in ("-o", "--ofile"):
             destination_path = arg
-        elif opt in ("-w", "--wfile"):
-            do_empty = True
     if path_edge == "":
         print(Bcolors.FAIL + "Missing Path Edge" + Bcolors.ENDC)
         exit(2)
@@ -61,7 +58,7 @@ def parse_input(argv):
     if destination_path == "":
         print(Bcolors.FAIL + "Missing Path Destination" + Bcolors.ENDC)
         exit(2)
-    return path_edge, path_vertex, destination_path, do_empty
+    return path_edge, path_vertex, destination_path
 
 def compute_empty_row(vector):
     result = []
@@ -120,16 +117,10 @@ def manage_edge(path_edge, dictionary, num_of_vertex):
 
     print(Bcolors.OKBLUE + "Multiplying d_inv * a_matrix..." + Bcolors.ENDC)
     t_matrix = d_inv * a_matrix
-    lil_t = lil_matrix(t_matrix)
-
-    t_matrix = csr_matrix(lil_t)
-
-    empty = compute_empty_row(t_matrix.indptr)
 
     print(Bcolors.OKBLUE + "Transposing T..." + Bcolors.ENDC)
-    t_trans = t_matrix.transpose()
-    #t_trans.data = DAMPING * t_trans.data + (1 - DAMPING) / dimension
-    return t_trans, empty
+    t_trans = csr_matrix(t_matrix.transpose())
+    return t_trans, t_matrix
 
 
 def compute_damping_matrix(num_of_vertex):
@@ -152,13 +143,13 @@ def manage_time(rr):
 
 
 def main(argv):
-    path_edge, path_vertex, destination_path, empty = parse_input(argv)
+    path_edge, path_vertex, destination_path = parse_input(argv)
 
     dictionary, num_of_vertex = manage_vertex(path_vertex)
 
     print(Bcolors.OKGREEN + "Number of Vertex : " + str(num_of_vertex) + Bcolors.ENDC)
 
-    t, empty_row = manage_edge(path_edge, dictionary, num_of_vertex)
+    t, t_before_trans = manage_edge(path_edge, dictionary, num_of_vertex)
 
     print(Bcolors.OKBLUE + "Compute Damping Matrix (Single Value)..." + Bcolors.ENDC)
 
@@ -167,12 +158,8 @@ def main(argv):
     print(Bcolors.OKBLUE + "Multiply T * Damping..." + Bcolors.ENDC)
     t = DAMPING * t
 
-    lunghezza = []
-    #empty_row = []
-
-    # if empty:
-    #print(Bcolors.OKBLUE + "Compute Empty Row..." + Bcolors.ENDC)
-    #empty_row = compute_empty_row(t.indptr)
+    print(Bcolors.OKBLUE + "Compute Empty Row..." + Bcolors.ENDC)
+    empty_row = compute_empty_row(t_before_trans.indptr)
     lunghezza = len(empty_row)
 
     print(Bcolors.OKGREEN + "Write CSV" + Bcolors.ENDC)
@@ -186,7 +173,6 @@ def main(argv):
         writer.writerow([len(t.data)])
         writer.writerow(t.data)
         writer.writerow([damping_matrix])
-        # if empty:
         writer.writerow([lunghezza])
         writer.writerow(empty_row)
 
