@@ -113,7 +113,7 @@ def manage_edge(path_edge, dictionary, num_of_vertex):
     print(Bcolors.OKBLUE + "Creating d^-1 vector..." + Bcolors.ENDC)
     d = a_matrix.sum(axis=1)
     d_pr = []
-    for el in d.transpose().tolist()[0]:
+    for el in tqdm(d.transpose().tolist()[0]):
         d_pr.append((1.0 / el) if el != 0 else 0)
 
 
