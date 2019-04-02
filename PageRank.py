@@ -4,14 +4,15 @@ import math
 DAMPING = 0.85 # <-------------------------------GUARDAAAAA
 SOGLIA = 0.000001
 
-a = np.array(([0,1,0,1],
-              [0,0,1,1],
-              [0,0,0,0],
-              [1,0,0,0]))
+# a = np.array(([0,1,0,1],
+#               [0,0,1,1],
+#               [0,0,0,0],
+#               [1,0,0,0]))
 
-# a = np.array(([0, 1, 0],
-#               [1, 0, 1],
-#               [0, 1, 0]))
+a = np.array(([0, 1, 0, 1],
+              [0, 0, 1, 0],
+              [1, 1, 0, 0],
+              [0, 0, 0, 0]))
 
 # a = np.array(([0, 1, 0, 0, 0, 0],
 #               [0, 0, 1, 1, 1, 0],
@@ -47,6 +48,8 @@ for i in range(0, number_of_vertex):
 t_trans = t.transpose()
 t_trans_damp = t_trans * DAMPING
 
+print(t_trans_damp)
+
 seconda = t_trans_damp
 
 prima = np.dot(np.ones((number_of_vertex,number_of_vertex)),(1-DAMPING)/number_of_vertex)
@@ -74,7 +77,7 @@ def iterate(p, s, init):
         new = []
         new = np.dot(parz, old)
         errore = check_norm(old,new)
-        if (errore-SOGLIA) < SOGLIA:
+        if errore <= SOGLIA:
             termina = False
         print("----- ITERAZIONE ", count, " -----")
         print("PK : ", new)
