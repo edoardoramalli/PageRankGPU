@@ -34,9 +34,10 @@ void sauron_eye(float *old_pk, float *new_pk, int *empty_cols, int *row_indices,
 
 	int block_number = (*pk_len + BLOCKSIZE - 1) / BLOCKSIZE;
 	int uniform_blocks = (*empty_cols_len + BLOCKSIZE - 1)/BLOCKSIZE;
+	int mul_blocks = (*data_len + BLOCKSIZE -1)/BLOCKSIZE;
 	//printf("Block number: %d\n", block_number);
 	
-	float *result, *out, *out_unif, *uniform_contrib, *uniform_factor;
+	float *result, *out, *out_unif, *uniform_contrib, *uniform_factor, *weighted;
 	bool *loop;
 	cudaMalloc(&result, sizeof(float));
 	cudaMalloc(&uniform_contrib, sizeof(float));
@@ -44,13 +45,15 @@ void sauron_eye(float *old_pk, float *new_pk, int *empty_cols, int *row_indices,
 	cudaMalloc(&out, sizeof(float)*block_number);
 	cudaMalloc(&out_unif, sizeof(float)*block_number);
 	cudaMalloc(&uniform_factor, sizeof(float));
+	cudaMalloc(&weighted, *pk_len*sizeof(float));
+
 	
 	int i = 0;
 
 	float * tmp;
 
-	float teleportation = DAMPING_F/ *pk_len;
-	cudaMemcpy(uniform_factor, &teleportation, sizeof(float),cudaMemcpyHostToDevice);
+	float damping_matrix = (1-DAMPING_F)/ *pk_len;
+	cudaMemcpy(uniform_factor, &damping_matrix, sizeof(float),cudaMemcpyHostToDevice);
 	
 	*loop = true;
 
@@ -62,16 +65,19 @@ void sauron_eye(float *old_pk, float *new_pk, int *empty_cols, int *row_indices,
 			new_pk = tmp;
 		}
 
+		// Uniform contrib = empty columns contribute
 
+		pk_multiply<BLOCKSIZE> <<<mul_blocks, BLOCKSIZE>>>(data, columns, row_indices, damping, new_pk, old_pk, *data_len);
 		uniform_reduction <BLOCKSIZE> <<<uniform_blocks, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>> (old_pk, empty_cols, out_unif, uniform_factor, *empty_cols_len);
-		cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>>(out_unif, uniform_contrib, uniform_blocks);
-		printf("Uniform contribution calculation\n");
+		cudaDeviceSynchronize();
 
-		handle_multiply<BLOCKSIZE> <<<block_number, BLOCKSIZE>>> (old_pk, new_pk, damping, row_indices, columns, data, uniform_contrib, *pk_len);
-		printf("Multiply\n");
+		cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>>(out_unif, uniform_contrib, uniform_blocks);
 
 		*loop = false;
 
+		sumAll<BLOCKSIZE> <<< block_number, BLOCKSIZE >>> (uniform_contrib, new_pk, pk_len);
+
+		cudaDeviceSynchronize();
 		check_termination<1> <<<1, 1>>>(old_pk, new_pk, out, result, loop, pk_len, block_number);
 		printf("Check termination\n");
 
@@ -93,19 +99,19 @@ void sauron_eye(float *old_pk, float *new_pk, int *empty_cols, int *row_indices,
 
 int main(){
 
-    int nodes_number, col_indices_number, conn_size, row_len, empty_len;
+    int nodes_number, col_indices_number, empty_len;
 	float damping;
 	
 	string datasetPath = CONNECTIONS;
 
-	loadDimensions(datasetPath, nodes_number, col_indices_number, conn_size, row_len, damping, empty_len);
+	loadDimensions(datasetPath, nodes_number, col_indices_number, damping, empty_len);
 
-	int *row_ptrs = (int*) malloc(row_len * sizeof(int));
-    int *col_indices = (int*) malloc(col_indices_number * sizeof(int));
-    int *empty_cols = (int*) malloc(empty_len * sizeof(int));
-	float *connections = (float*) malloc(conn_size * sizeof(float));
+	int *row_ptrs = (int*) malloc(col_indices_number * sizeof(int));
+	int *col_indices = (int*) malloc(col_indices_number * sizeof(int));
+	int *empty_cols = (int*) malloc(empty_len * sizeof(int));
+	float *connections = (float*) malloc(col_indices_number * sizeof(float));
 
-    cout << "Allocated vectors succesfully!" << endl;
+	cout << "Allocated vectors succesfully!" << endl;
 	
 	loadDataset(datasetPath, row_ptrs, col_indices, connections, empty_cols);
 
@@ -137,7 +143,7 @@ int main(){
 	cudaMalloc(&factor_gpu, sizeof(float));
 	cudaMalloc(&c_gpu, col_indices_number*sizeof(int));
 	cudaMalloc(&d_gpu, col_indices_number*sizeof(float));
-	cudaMalloc(&r_gpu, (nodes_number+1)*sizeof(int));
+	cudaMalloc(&r_gpu, col_indices_number*sizeof(int));
 	cudaMallocManaged(&pk_len, sizeof(int));
 	cudaMallocManaged(&data_len, sizeof(int));
 	cudaMallocManaged(&empty_len_gpu, sizeof(int));
@@ -177,7 +183,7 @@ int main(){
 	// cudaMemcpy(r_gpu, ptr_test, sizeof(int)*(nodes_number+1), cudaMemcpyHostToDevice);
 	
 	cudaMemcpy(pk_len, &nodes_number, sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(data_len, &conn_size, sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(data_len, &col_indices_number, sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(empty_len_gpu, &empty_len, sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(empty_gpu, empty_cols, sizeof(int)*empty_len, cudaMemcpyHostToDevice);	
 
