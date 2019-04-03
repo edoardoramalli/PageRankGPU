@@ -1,14 +1,9 @@
 
-\.DS_Store
-
-\.idea/
-
-\.vscode/
-
-test
-
-a\.out
-
+.DS_Store
+*.xml
+*.ipch
+*.iml
+*.bin
 *.csv
 
 venv/
