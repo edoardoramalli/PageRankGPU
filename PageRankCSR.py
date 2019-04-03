@@ -56,7 +56,7 @@ def parse_input(argv):
     if destination_path == "":
         print(Bcolors.FAIL + "Missing Name Output" + Bcolors.ENDC)
         exit(2)
-    if soglia >= 1:
+    if not 0 <= soglia < 1:
         print(Bcolors.FAIL + "Invalid Threshold" + Bcolors.ENDC)
         exit(2)
     if damping == 0:
