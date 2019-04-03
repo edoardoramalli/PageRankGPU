@@ -26,7 +26,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 void sauron_eye(float *old_pk, float *new_pk, int *empty_cols, int *row_indices, int *columns,
 	float *data, float *damping, int *pk_len, int *data_len, int *empty_cols_len){
 
-
 	// printf("P1 damping %.8f\n",*damping);
 	// printf("P1 pk_len %d\n",*pk_len);
 	// printf("P1 data_len %d\n",*data_len);
@@ -37,14 +36,14 @@ void sauron_eye(float *old_pk, float *new_pk, int *empty_cols, int *row_indices,
 	int mul_blocks = (*data_len + BLOCKSIZE -1)/BLOCKSIZE;
 	//printf("Block number: %d\n", block_number);
 	
-	float *result, *out, *out_unif, *uniform_contrib, *uniform_factor, *weighted;
+	float *result, *out, *out_unif, *empty_contrib, *empty_value, *weighted;
 	bool *loop;
 	cudaMalloc(&result, sizeof(float));
-	cudaMalloc(&uniform_contrib, sizeof(float));
+	cudaMallocManaged(&empty_contrib, sizeof(float));
 	cudaMallocManaged(&loop, sizeof(bool));
 	cudaMalloc(&out, sizeof(float)*block_number);
 	cudaMalloc(&out_unif, sizeof(float)*block_number);
-	cudaMalloc(&uniform_factor, sizeof(float));
+	cudaMallocManaged(&empty_value, sizeof(float));
 	cudaMalloc(&weighted, *pk_len*sizeof(float));
 
 	
@@ -52,38 +51,40 @@ void sauron_eye(float *old_pk, float *new_pk, int *empty_cols, int *row_indices,
 
 	float * tmp;
 
-	float damping_matrix = (1-DAMPING_F)/ *pk_len;
-	cudaMemcpy(uniform_factor, &damping_matrix, sizeof(float),cudaMemcpyHostToDevice);
+	float teleportation = DAMPING_F/ *pk_len;
+	cudaMemcpy(empty_value, &teleportation, sizeof(float),cudaMemcpyHostToDevice);
+
 	
 	*loop = true;
-
+	
 	while (*loop){
 		printf("-------------- Iteration %d ----------------\n", i);
 		if (i!=0){
 			tmp = old_pk;
 			old_pk = new_pk;
 			new_pk = tmp;
+			cudaMemset(new_pk, 0, *pk_len*sizeof(float));
 		}
 
-		// Uniform contrib = empty columns contribute
 
-		pk_multiply<BLOCKSIZE> <<<mul_blocks, BLOCKSIZE>>>(data, columns, row_indices, damping, new_pk, old_pk, *data_len);
-		uniform_reduction <BLOCKSIZE> <<<uniform_blocks, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>> (old_pk, empty_cols, out_unif, uniform_factor, *empty_cols_len);
-		cudaDeviceSynchronize();
+		uniform_reduction <BLOCKSIZE> <<<uniform_blocks, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>> (old_pk, empty_cols, out_unif, empty_value, *empty_cols_len);
+		cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>>(out_unif, empty_contrib, uniform_blocks);	//ok	
 
-		cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>>(out_unif, uniform_contrib, uniform_blocks);
+		pk_multiply<BLOCKSIZE> <<<mul_blocks, BLOCKSIZE>>>(data, columns, row_indices, old_pk, new_pk, *data_len, pk_len);
+
 
 		*loop = false;
 
-		sumAll<BLOCKSIZE> <<< block_number, BLOCKSIZE >>> (uniform_contrib, new_pk, pk_len);
 
-		cudaDeviceSynchronize();
+		sumAll<BLOCKSIZE> <<< block_number, BLOCKSIZE >>> (empty_contrib, damping, new_pk, pk_len);
+
 		check_termination<1> <<<1, 1>>>(old_pk, new_pk, out, result, loop, pk_len, block_number);
 		printf("Check termination\n");
 
 		i++;
 
 		cudaDeviceSynchronize();
+		//if (i == 1) break;
 	}
 
 	cudaFree(result);
@@ -91,10 +92,6 @@ void sauron_eye(float *old_pk, float *new_pk, int *empty_cols, int *row_indices,
 	cudaFree(out);
 
 }
-
-// 3.99458e-07
-// 2.31906e-07
-// 5.49669e-07
 
 
 int main(){
@@ -151,37 +148,14 @@ int main(){
 
 	// Populate device data from main memory
 
-	//cout << nodes_number << endl;
 	cout << "DAMPING FROM CSV: " << damping << endl;
 
-	//uniform_p = 1/3.0f;
-	//float pr_test[] = {uniform_p, uniform_p, uniform_p};
-	//float data_test[] = {0.5*0.85, 0.85, 0.5*0.85};
-	// int col_test[] = {1,0,1};
-	// int ptr_test[] = {0,1,1,3};
-	// conn_size = 3;
-	// col_indices_number = 3;
-	// nodes_number = 3;
-	//damping = 0.15/3;
-
-
-	
 
 	cudaMemcpy(pk_gpu, pr, nodes_number*sizeof(float), cudaMemcpyHostToDevice);
-	//cudaMemcpy(pk_gpu, pr, nodes_number*sizeof(float), cudaMemcpyHostToDevice);
-
 	cudaMemcpy(factor_gpu, &damping, sizeof(float), cudaMemcpyHostToDevice);
-
 	cudaMemcpy(c_gpu, col_indices, sizeof(int)*col_indices_number, cudaMemcpyHostToDevice);
-	// cudaMemcpy(c_gpu, col_indices, sizeof(int)*col_indices_number, cudaMemcpyHostToDevice);
-
 	cudaMemcpy(d_gpu, connections, sizeof(float)*col_indices_number, cudaMemcpyHostToDevice);
-	// cudaMemcpy(d_gpu, data_test, sizeof(float)*col_indices_number, cudaMemcpyHostToDevice);
-
-	cudaMemcpy(r_gpu, row_ptrs, sizeof(int)*(nodes_number+1), cudaMemcpyHostToDevice);
-	
-	// cudaMemcpy(r_gpu, ptr_test, sizeof(int)*(nodes_number+1), cudaMemcpyHostToDevice);
-	
+	cudaMemcpy(r_gpu, row_ptrs, sizeof(int)*col_indices_number, cudaMemcpyHostToDevice);	
 	cudaMemcpy(pk_len, &nodes_number, sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(data_len, &col_indices_number, sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(empty_len_gpu, &empty_len, sizeof(int), cudaMemcpyHostToDevice);
@@ -197,6 +171,7 @@ int main(){
 	else {
 	  timestamp_start = -1;
 	}
+
 
 	
 	sauron_eye(pk_gpu, new_pk, empty_gpu, r_gpu, c_gpu, d_gpu, factor_gpu, pk_len, data_len, empty_len_gpu);
@@ -233,7 +208,7 @@ int main(){
 		cout << pr[i] << endl; 
 	}
 
-	storePagerank(pr, nodes_number, "pk_result_full.csv");
+	storePagerank(pr, nodes_number, "pk_data_small.csv");
 	
 	return 0;
 }

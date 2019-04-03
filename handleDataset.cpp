@@ -8,7 +8,7 @@ void loadDimensions (string datasetPath, int &nodes_number, int &col_indices_num
     if (connFile){
         string line, element;
         
-        // Read row_len number 
+        // Read nodes number 
         getline(connFile, line);
         nodes_number = stoi(line);
 
@@ -28,6 +28,7 @@ void loadDimensions (string datasetPath, int &nodes_number, int &col_indices_num
         // Save "damping" matrix factor
         getline(connFile, line);
         damping = stof(line);
+        cout << "READ DAMPING: " << damping << endl;
 
         // Read empty columns vector length
         getline(connFile, line);
@@ -41,15 +42,15 @@ void loadDimensions (string datasetPath, int &nodes_number, int &col_indices_num
 } 
 
 
-void loadDataset(string datasetPath, int* row_ptrs, int* col_indices, float* connections, int* empty_cols){
+void loadDataset(string datasetPath, int* row_ptrs, int* col_indices, float* data, int* empty_cols){
     ifstream connFile;
     connFile.open(datasetPath);
 
-    cout << "Load connections" << endl;
+    cout << "Load data" << endl;
     if (connFile){
         string line, element;
         
-        // Read row_len number and allocate vector
+        // Read nodes number and allocate vector
         getline(connFile, line);
         int nodes_number = stoi(line);
         
@@ -62,7 +63,7 @@ void loadDataset(string datasetPath, int* row_ptrs, int* col_indices, float* con
         stringstream ss(line);
         for (int i = 0; i < col_indices_number; i++){
             getline(ss, element, ',');
-            col_indices[i] = stoi(element);
+            row_ptrs[i] = stoi(element);
         }
 
         // Store column indices
@@ -71,6 +72,7 @@ void loadDataset(string datasetPath, int* row_ptrs, int* col_indices, float* con
         for (int i = 0; i < col_indices_number; i++){
             getline(tt, element, ',');
             col_indices[i] = stoi(element);
+
         }
 
         // Store data
@@ -78,17 +80,17 @@ void loadDataset(string datasetPath, int* row_ptrs, int* col_indices, float* con
         stringstream uu(line);
         for (int i = 0; i < col_indices_number; i++){
             getline(uu, element, ',');
-            connections[i] = stof(element);
+            data[i] = stof(element);
         }
 
-        // Save "damping" matrix factor
+        // Skip "damping" matrix factor
         getline(connFile, line);
         
         // Read empty columns vector length
         getline(connFile, line);
         int empty_len = stoi(line);
 
-        // Store data
+        // Store empty columns indices
         getline(connFile, line);
         stringstream vv(line);
 
