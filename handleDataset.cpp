@@ -4,6 +4,11 @@ void loadDimensions (string datasetPath, int &nodes_number, int &col_indices_num
     ifstream connFile;
     connFile.open(datasetPath);
 
+    if (!connFile.is_open()){
+        cerr << "Input file does not exist" << endl;
+        exit(-1);
+    }
+
     cout << "Load dimensions" << endl;
     if (connFile){
         string line, element;
@@ -28,7 +33,6 @@ void loadDimensions (string datasetPath, int &nodes_number, int &col_indices_num
         // Save "damping" matrix factor
         getline(connFile, line);
         damping = stof(line);
-        cout << "READ DAMPING: " << damping << endl;
 
         // Read empty columns vector length
         getline(connFile, line);
@@ -40,7 +44,6 @@ void loadDimensions (string datasetPath, int &nodes_number, int &col_indices_num
 
     }
 } 
-
 
 void loadDataset(string datasetPath, int* row_ptrs, int* col_indices, float* data, int* empty_cols){
     ifstream connFile;

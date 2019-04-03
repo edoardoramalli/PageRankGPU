@@ -1,11 +1,7 @@
 
 #include <stdio.h>
 
-#define BLOCKSIZE 32
-#define PRECISION 1000000
-#define THRESHOLD 0.000001
-#define DAMPING_F 0.85
-
+#define BLOCKSIZE 128
 
 template <unsigned int blockSize> __device__ void warpReduce(volatile float *sdata, unsigned int tid) {
     if (blockSize >= 64) sdata[tid] += sdata[tid + 32];
@@ -16,7 +12,7 @@ template <unsigned int blockSize> __device__ void warpReduce(volatile float *sda
     if (blockSize >= 2) sdata[tid] += sdata[tid + 1];
 }
 
-__device__ inline void ouratomicAdd(float* address, float value){
+__device__ inline void floatAtomicAdd(float* address, float value){
 
   float old = value;  
   float new_old;
@@ -34,10 +30,7 @@ template <unsigned int blockSize> __global__ void pk_multiply(float* data, int* 
 	
 	if(i < len){
 		float sum = data[i] * old_pk[columns[i]];
-		//new_pk[rows[i]] += sum;
-		ouratomicAdd(&new_pk[rows[i]], sum);
-		//if (rows[i] == 5) printf("cacca %.10f\n", sum);
-		
+		floatAtomicAdd(&new_pk[rows[i]], sum);		
 	}
 }
 
@@ -201,16 +194,16 @@ template <unsigned int blockSize> __global__ void termination_reduction(float *n
 
 
 template <unsigned int blockSize> __global__ void check_termination(float *old_pk, float *new_pk, float* out, float* result, bool *loop, 
-	int *pk_len, size_t out_len){
+	int *pk_len, size_t out_len, float *precision){
 	int block_number = (*pk_len + BLOCKSIZE - 1) / BLOCKSIZE;
 
 	termination_reduction <BLOCKSIZE> <<<block_number, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>> (new_pk, old_pk, out, *pk_len);
 	cuda_reduction <BLOCKSIZE> <<<1, BLOCKSIZE, BLOCKSIZE*sizeof(float) >>> (out, result, out_len);
 	cudaDeviceSynchronize();
-	float error;
-	error = sqrtf(*result);
-	printf("Error  %.10f\n", error);
-	if (error > THRESHOLD) {
+	
+	float error = sqrtf(*result);
+	//printf("Error  %.10f\n", error);
+	if (error > *precision) {
 		*loop = true;
 	}
 
