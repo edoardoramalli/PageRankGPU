@@ -10,3 +10,5 @@ test
 a\.out
 
 *.csv
+
+venv/

@@ -1,42 +1,38 @@
 #include "handleDataset.h"
 
-void loadDimensions (string datasetPath, int &nodes_number, int &col_indices_number, int &conn_size, int &row_len, float &damping, int &empty_len){
+void loadDimensions (string datasetPath, int &nodes_number, int &col_indices_number, float &damping, int &empty_len){
     ifstream connFile;
     connFile.open(datasetPath);
+
+    if (!connFile.is_open()){
+        cerr << "Input file does not exist" << endl;
+        exit(-1);
+    }
 
     cout << "Load dimensions" << endl;
     if (connFile){
         string line, element;
         
-        // Read row_len number 
+        // Read nodes number 
         getline(connFile, line);
-        row_len = stoi(line);
-        nodes_number = row_len-1;
-
-        // Skip row pointers array
-        getline(connFile, line);
-
+        nodes_number = stoi(line);
 
         // Read column indices length
         getline(connFile, line);
         col_indices_number = stoi(line);
-
-        // Skip column indices
+        
+        // Skip row pointers array
         getline(connFile, line);
 
-        getline(connFile, line);
-        conn_size = stoi(line);
-
-        // Skip column indices
+        // Skip column
         getline(connFile, line);
 
-        //cout << "Data size: " << conn_size << "\nColumn indices:  " << col_indices_number << "\nRow pointers:  " << row_len << endl;
+        // Skip data
+        getline(connFile, line);
 
         // Save "damping" matrix factor
         getline(connFile, line);
         damping = stof(line);
-
-        // cout << "Damping contribute: " << damping << endl;
 
         // Read empty columns vector length
         getline(connFile, line);
@@ -49,31 +45,29 @@ void loadDimensions (string datasetPath, int &nodes_number, int &col_indices_num
     }
 } 
 
-
-void loadDataset(string datasetPath, int* row_ptrs, int* col_indices, float* connections, int* empty_cols){
+void loadDataset(string datasetPath, int* row_ptrs, int* col_indices, float* data, int* empty_cols){
     ifstream connFile;
     connFile.open(datasetPath);
 
-    cout << "Load connections" << endl;
+    cout << "Load data" << endl;
     if (connFile){
         string line, element;
         
-        // Read row_len number and allocate vector
+        // Read nodes number and allocate vector
         getline(connFile, line);
-        int row_len = stoi(line);
-        int nodes_number = row_len-1;
+        int nodes_number = stoi(line);
         
-        // Store meaningful rows
+        // Read row indices number and allocate vector
+        getline(connFile, line);
+        int col_indices_number = stoi(line);
+
+        // Store row indices
         getline(connFile, line);
         stringstream ss(line);
-        for (int i = 0; i < row_len; i++){
+        for (int i = 0; i < col_indices_number; i++){
             getline(ss, element, ',');
             row_ptrs[i] = stoi(element);
         }
-
-        // Read column indices number and allocate vector
-        getline(connFile, line);
-        int col_indices_number = stoi(line);
 
         // Store column indices
         getline(connFile, line);
@@ -81,28 +75,25 @@ void loadDataset(string datasetPath, int* row_ptrs, int* col_indices, float* con
         for (int i = 0; i < col_indices_number; i++){
             getline(tt, element, ',');
             col_indices[i] = stoi(element);
-        }
 
-        // Read data length
-        getline(connFile, line);
-        int conn_size = stoi(line);
+        }
 
         // Store data
         getline(connFile, line);
         stringstream uu(line);
-        for (int i = 0; i < conn_size; i++){
+        for (int i = 0; i < col_indices_number; i++){
             getline(uu, element, ',');
-            connections[i] = stof(element);
+            data[i] = stof(element);
         }
 
-        // Save "damping" matrix factor
+        // Skip "damping" matrix factor
         getline(connFile, line);
         
         // Read empty columns vector length
         getline(connFile, line);
         int empty_len = stoi(line);
 
-        // Store data
+        // Store empty columns indices
         getline(connFile, line);
         stringstream vv(line);
 

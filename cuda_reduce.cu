@@ -1,11 +1,7 @@
 
 #include <stdio.h>
 
-#define BLOCKSIZE 32
-#define PRECISION 1000000
-#define THRESHOLD 0.000001
-#define DAMPING_F 0.85
-
+#define BLOCKSIZE 128
 
 template <unsigned int blockSize> __device__ void warpReduce(volatile float *sdata, unsigned int tid) {
     if (blockSize >= 64) sdata[tid] += sdata[tid + 32];
@@ -14,6 +10,37 @@ template <unsigned int blockSize> __device__ void warpReduce(volatile float *sda
     if (blockSize >= 8) sdata[tid] += sdata[tid + 4];
     if (blockSize >= 4) sdata[tid] += sdata[tid + 2];
     if (blockSize >= 2) sdata[tid] += sdata[tid + 1];
+}
+
+__device__ inline void floatAtomicAdd(float* address, float value){
+
+  float old = value;  
+  float new_old;
+
+  do{
+	new_old = atomicExch(address, 0.0f);
+	new_old += old;
+  }
+  while ((old = atomicExch(address, new_old))!=0.0f);
+}
+
+template <unsigned int blockSize> __global__ void pk_multiply(float* data, int* columns, int* rows, float* old_pk, float* new_pk, unsigned int len, int *pk_len){
+	size_t tid = threadIdx.x,    
+	i = blockIdx.x * blockSize + tid;
+	
+	if(i < len){
+		float sum = data[i] * old_pk[columns[i]];
+		floatAtomicAdd(&new_pk[rows[i]], sum);		
+	}
+}
+
+template <unsigned int blockSize> __global__ void sumAll(float *empty_contrib, float *damping_matrix, float *new_pk, int *pk_len){
+	size_t tid = threadIdx.x,    
+	i = blockIdx.x * blockSize + tid;
+	
+	if(i < *pk_len){
+		new_pk[i] += *empty_contrib + *damping_matrix;
+	}
 }
 
 template <unsigned int blockSize> __global__ void cuda_reduction(float *array_in, float *reduct, size_t array_len) {
@@ -126,38 +153,7 @@ template <unsigned int blockSize> __global__ void weighted_sum_partial(float *pa
 	}
 	if (tid == 0) reduct[blockIdx.x] = sdata[0];
 }
-/*
 
-*/
-template <unsigned int blockSize> __global__ void handle_multiply(float *old_pk, float *new_pk, float *damp,
-	int *row_indices, int *columns, float *mat_data, float *uniform_factor, size_t pk_len){	
-		
-	int tid = blockIdx.x * blockSize + threadIdx.x;	
-	if (tid < pk_len){
-		new_pk[tid] = 0;
-		int index = row_indices[tid];  // Index of the first element of the row in columns array and data array
-		int row_len = row_indices[tid+1] - index;
-
-		// If there is data for the row...
-		if (row_len > 0){
-			float *mult, *result;
-			int block_number = (row_len + BLOCKSIZE - 1) / BLOCKSIZE;
-			cudaMalloc(&mult, sizeof(float)*block_number);
-			cudaMalloc(&result, sizeof(float));
-
-			weighted_sum_partial <BLOCKSIZE> <<< block_number, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>>(old_pk, mult, &columns[index], &mat_data[index], row_len, pk_len);
-			cudaDeviceSynchronize();
-			cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>>(mult, result, block_number);
-			cudaDeviceSynchronize();
-			
-			new_pk[tid] += *result;
-			cudaFree(mult);
-			cudaFree(result);
-		}
-		// Sum damping and uniform contribution
-		new_pk[tid] += *damp + *uniform_factor;
-	}
-}
 
 template <unsigned int blockSize> __global__ void termination_reduction(float *new_pk, float *old_pk, float *reduct, size_t array_len) {
     extern volatile __shared__ float sdata[];
@@ -198,16 +194,16 @@ template <unsigned int blockSize> __global__ void termination_reduction(float *n
 
 
 template <unsigned int blockSize> __global__ void check_termination(float *old_pk, float *new_pk, float* out, float* result, bool *loop, 
-	int *pk_len, size_t out_len){
+	int *pk_len, size_t out_len, float *precision){
 	int block_number = (*pk_len + BLOCKSIZE - 1) / BLOCKSIZE;
 
 	termination_reduction <BLOCKSIZE> <<<block_number, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>> (new_pk, old_pk, out, *pk_len);
 	cuda_reduction <BLOCKSIZE> <<<1, BLOCKSIZE, BLOCKSIZE*sizeof(float) >>> (out, result, out_len);
 	cudaDeviceSynchronize();
-	float error;
-	error = sqrtf(*result);
+	
+	float error = sqrtf(*result);
 	//printf("Error  %.10f\n", error);
-	if (error - THRESHOLD > THRESHOLD) {
+	if (error > *precision) {
 		*loop = true;
 	}
 

@@ -1,15 +1,16 @@
 #include <stdio.h>
+#include <unistd.h>
 #include "handleDataset.h"
 #include <time.h>       /* time_t, time (for timestamp in second) */
 #include <sys/timeb.h>  /* ftime, timeb (for timestamp in millisecond) */
 #include "cuda_reduce.cu"
 
-//#include <cub/cub.cuh>
-//#include "Utilities.cuh"
-
 using namespace std;
 
-#define CONNECTIONS "data_small.csv"
+#define DAMPING_F 0.85
+#define THRESHOLD 0.000001
+
+
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -21,93 +22,182 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
    }
 }
 
-//sqrt(sum((y-x)**2))
 
-void sauron_eye(float *old_pk, float *new_pk, int *empty_cols, int *row_indices, int *columns,
-	float *data, float *damping, int *pk_len, int *data_len, int *empty_cols_len){
-
-
-	// printf("P1 damping %.8f\n",*damping);
-	// printf("P1 pk_len %d\n",*pk_len);
-	// printf("P1 data_len %d\n",*data_len);
+void sauron_eye(float* pkCPU, float *old_pk, float *new_pk, int *empty_cols, int *row_indices, int *columns,
+	float *data, float *damping, int *pk_len, int *data_len, int *empty_cols_len, int dampingFactor, float precisionThreshold){
 
 
 	int block_number = (*pk_len + BLOCKSIZE - 1) / BLOCKSIZE;
 	int uniform_blocks = (*empty_cols_len + BLOCKSIZE - 1)/BLOCKSIZE;
-	//printf("Block number: %d\n", block_number);
+	int mul_blocks = (*data_len + BLOCKSIZE -1)/BLOCKSIZE;
 	
-	float *result, *out, *out_unif, *uniform_contrib, *uniform_factor;
+	float *result, *out, *out_unif, *empty_contrib, *empty_value, *weighted, *thresholdGPU;
 	bool *loop;
+	cudaMalloc(&thresholdGPU, sizeof(float));
 	cudaMalloc(&result, sizeof(float));
-	cudaMalloc(&uniform_contrib, sizeof(float));
+	cudaMallocManaged(&empty_contrib, sizeof(float));
 	cudaMallocManaged(&loop, sizeof(bool));
 	cudaMalloc(&out, sizeof(float)*block_number);
 	cudaMalloc(&out_unif, sizeof(float)*block_number);
-	cudaMalloc(&uniform_factor, sizeof(float));
+	cudaMallocManaged(&empty_value, sizeof(float));
+	cudaMalloc(&weighted, *pk_len*sizeof(float));
+
 	
 	int i = 0;
 
 	float * tmp;
 
-	float teleportation = DAMPING_F/ *pk_len;
-	cudaMemcpy(uniform_factor, &teleportation, sizeof(float),cudaMemcpyHostToDevice);
+	float teleportation = dampingFactor/ *pk_len;
+	cudaMemcpy(empty_value, &teleportation, sizeof(float),cudaMemcpyHostToDevice);
+	cudaMemcpy(thresholdGPU, &precisionThreshold, sizeof(float), cudaMemcpyHostToDevice);
+
 	
 	*loop = true;
 
+	// Get timestamp
+	struct timeb timer_msec;
+	long long int timestamp_start, timestamp_end; /* timestamp in millisecond. */
+	
 	while (*loop){
-		printf("-------------- Iteration %d ----------------\n", i);
+		//printf("-------------- Iteration %d ----------------\n", i);
 		if (i!=0){
 			tmp = old_pk;
 			old_pk = new_pk;
 			new_pk = tmp;
+			cudaMemset(new_pk, 0, *pk_len*sizeof(float));
+		}
+		else{
+			if (!ftime(&timer_msec)) {
+				timestamp_start = ((long long int) timer_msec.time) * 1000ll + 
+									(long long int) timer_msec.millitm;
+			}
+			else {
+				timestamp_start = -1;
+			}
 		}
 
 
-		uniform_reduction <BLOCKSIZE> <<<uniform_blocks, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>> (old_pk, empty_cols, out_unif, uniform_factor, *empty_cols_len);
-		cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>>(out_unif, uniform_contrib, uniform_blocks);
-		printf("Uniform contribution calculation\n");
+		uniform_reduction <BLOCKSIZE> <<<uniform_blocks, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>> (old_pk, empty_cols, out_unif, empty_value, *empty_cols_len);
+		cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>>(out_unif, empty_contrib, uniform_blocks);		
 
-		handle_multiply<BLOCKSIZE> <<<block_number, BLOCKSIZE>>> (old_pk, new_pk, damping, row_indices, columns, data, uniform_contrib, *pk_len);
-		printf("Multiply\n");
+		pk_multiply<BLOCKSIZE> <<<mul_blocks, BLOCKSIZE>>>(data, columns, row_indices, old_pk, new_pk, *data_len, pk_len);
+
 
 		*loop = false;
 
-		check_termination<1> <<<1, 1>>>(old_pk, new_pk, out, result, loop, pk_len, block_number);
-		printf("Check termination\n");
+
+		sumAll<BLOCKSIZE> <<< block_number, BLOCKSIZE >>> (empty_contrib, damping, new_pk, pk_len);
+
+		check_termination<1> <<<1, 1>>>(old_pk, new_pk, out, result, loop, pk_len, block_number, thresholdGPU);
+		//printf("Check termination\n");
 
 		i++;
 
 		cudaDeviceSynchronize();
 	}
 
+	// Copy data back
+	gpuErrchk(cudaMemcpy(pkCPU, new_pk, *pk_len * sizeof(float), cudaMemcpyDeviceToHost));
+
+	if (!ftime(&timer_msec)) {
+		timestamp_end = ((long long int) timer_msec.time) * 1000ll + 
+							(long long int) timer_msec.millitm;
+		}
+	else {
+	timestamp_end = -1;
+	}
+
+	cout << endl;
+	cout << "Completed Convergence in " << i << " iterations" << endl;
+
+	cout << "Time to convergence: " << (float)(timestamp_end - timestamp_start) / 1000 << endl;
+
+
 	cudaFree(result);
 	cudaFree(loop);
 	cudaFree(out);
-
 }
 
-// 3.99458e-07
-// 2.31906e-07
-// 5.49669e-07
+
+int main(int argc, char *argv[]){
+
+	int nodes_number, col_indices_number, empty_len;
+	float dampingMatrix;
+	float dampingFactor = DAMPING_F;
+	float precisionThreshold = THRESHOLD;
+
+	string inputPath = "";
+	string outputPath = "";
+
+	int opt;
+	while((opt = getopt(argc, argv, "i:o:sfd:t:"))!= EOF){
+		switch (opt){
+			case 'i':
+				inputPath = optarg;
+				outputPath =  "pk_" + inputPath; 
+				break;
+			case 'o':
+				outputPath = optarg;
+				break;
+			case 's':
+				inputPath = "data_small.csv";
+				outputPath = "pk_data_small.csv";
+				break;
+			case 'f':
+				inputPath = "data_full.csv";
+				outputPath = "pk_data_full.csv";
+				break;
+			case 'd':
+				dampingFactor = stof(optarg);
+				break;
+			case 't':
+				precisionThreshold = stof(optarg);
+				break;
+			default:
+				cout << "Invalid parameter " << opt << endl;
+				exit(-1);
+		}
+	}
 
 
-int main(){
+	if (inputPath == ""){
+		cout << "Empty input path!" << endl;
+		exit(-1);
+	}
 
-    int nodes_number, col_indices_number, conn_size, row_len, empty_len;
-	float damping;
+	if (outputPath == ""){
+		cout << "Empty output path!" << endl;
+		exit(-1);
+	}
+
+	if (precisionThreshold >= 1 | precisionThreshold < 0){
+		cout << "Precision too coarse! Input a precision < 1" << endl;
+		exit(-1);
+	}
+
+	if (dampingFactor >= 1 | dampingFactor < 0){
+		cout << "Damping too big! Input a damping between 0 and 1" << endl;
+		exit(-1);
+	}
+
+	cout << "Input dataset: " << inputPath << endl;
+	cout << "Output file: " << outputPath << endl;
+	cout << "Damping factor: " << dampingFactor << endl;
+	cout << "Precision threshold: " << precisionThreshold << endl << endl;
+
+
+	/*-----------------------------------------------------------------------*/
+
+	loadDimensions(inputPath, nodes_number, col_indices_number, dampingMatrix, empty_len);
+
+	int *row_ptrs = (int*) malloc(col_indices_number * sizeof(int));
+	int *col_indices = (int*) malloc(col_indices_number * sizeof(int));
+	int *empty_cols = (int*) malloc(empty_len * sizeof(int));
+	float *connections = (float*) malloc(col_indices_number * sizeof(float));
+
+	cout << "Allocated vectors succesfully!" << endl;
 	
-	string datasetPath = CONNECTIONS;
-
-	loadDimensions(datasetPath, nodes_number, col_indices_number, conn_size, row_len, damping, empty_len);
-
-	int *row_ptrs = (int*) malloc(row_len * sizeof(int));
-    int *col_indices = (int*) malloc(col_indices_number * sizeof(int));
-    int *empty_cols = (int*) malloc(empty_len * sizeof(int));
-	float *connections = (float*) malloc(conn_size * sizeof(float));
-
-    cout << "Allocated vectors succesfully!" << endl;
-	
-	loadDataset(datasetPath, row_ptrs, col_indices, connections, empty_cols);
+	loadDataset(inputPath, row_ptrs, col_indices, connections, empty_cols);
 
 	cout << "Allocate and initialize PageRank" << endl;
 
@@ -129,15 +219,12 @@ int main(){
 
 	// Allocate device memory
 
-	// int empty_columns = 1;
-	// int empty_c[] = {2}; 
-
 	cudaMalloc(&pk_gpu, nodes_number*sizeof(float));
 	cudaMalloc(&new_pk, nodes_number*sizeof(float));
 	cudaMalloc(&factor_gpu, sizeof(float));
 	cudaMalloc(&c_gpu, col_indices_number*sizeof(int));
 	cudaMalloc(&d_gpu, col_indices_number*sizeof(float));
-	cudaMalloc(&r_gpu, (nodes_number+1)*sizeof(int));
+	cudaMalloc(&r_gpu, col_indices_number*sizeof(int));
 	cudaMallocManaged(&pk_len, sizeof(int));
 	cudaMallocManaged(&data_len, sizeof(int));
 	cudaMallocManaged(&empty_len_gpu, sizeof(int));
@@ -145,72 +232,17 @@ int main(){
 
 	// Populate device data from main memory
 
-	//cout << nodes_number << endl;
-	cout << "DAMPING FROM CSV: " << damping << endl;
-
-	//uniform_p = 1/3.0f;
-	//float pr_test[] = {uniform_p, uniform_p, uniform_p};
-	//float data_test[] = {0.5*0.85, 0.85, 0.5*0.85};
-	// int col_test[] = {1,0,1};
-	// int ptr_test[] = {0,1,1,3};
-	// conn_size = 3;
-	// col_indices_number = 3;
-	// nodes_number = 3;
-	//damping = 0.15/3;
-
-
-	
-
 	cudaMemcpy(pk_gpu, pr, nodes_number*sizeof(float), cudaMemcpyHostToDevice);
-	//cudaMemcpy(pk_gpu, pr, nodes_number*sizeof(float), cudaMemcpyHostToDevice);
-
-	cudaMemcpy(factor_gpu, &damping, sizeof(float), cudaMemcpyHostToDevice);
-
+	cudaMemcpy(factor_gpu, &dampingMatrix, sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(c_gpu, col_indices, sizeof(int)*col_indices_number, cudaMemcpyHostToDevice);
-	// cudaMemcpy(c_gpu, col_indices, sizeof(int)*col_indices_number, cudaMemcpyHostToDevice);
-
 	cudaMemcpy(d_gpu, connections, sizeof(float)*col_indices_number, cudaMemcpyHostToDevice);
-	// cudaMemcpy(d_gpu, data_test, sizeof(float)*col_indices_number, cudaMemcpyHostToDevice);
-
-	cudaMemcpy(r_gpu, row_ptrs, sizeof(int)*(nodes_number+1), cudaMemcpyHostToDevice);
-	
-	// cudaMemcpy(r_gpu, ptr_test, sizeof(int)*(nodes_number+1), cudaMemcpyHostToDevice);
-	
+	cudaMemcpy(r_gpu, row_ptrs, sizeof(int)*col_indices_number, cudaMemcpyHostToDevice);	
 	cudaMemcpy(pk_len, &nodes_number, sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(data_len, &conn_size, sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(data_len, &col_indices_number, sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(empty_len_gpu, &empty_len, sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(empty_gpu, empty_cols, sizeof(int)*empty_len, cudaMemcpyHostToDevice);	
-
-	// Get timestamp
-	struct timeb timer_msec;
-	long long int timestamp_start, timestamp_end; /* timestamp in millisecond. */
-	if (!ftime(&timer_msec)) {
-	  timestamp_start = ((long long int) timer_msec.time) * 1000ll + 
-						  (long long int) timer_msec.millitm;
-	}
-	else {
-	  timestamp_start = -1;
-	}
-
 	
-	sauron_eye(pk_gpu, new_pk, empty_gpu, r_gpu, c_gpu, d_gpu, factor_gpu, pk_len, data_len, empty_len_gpu);
-
-	gpuErrchk( cudaDeviceSynchronize() );
-
-	// Copy data back
-	cudaMemcpy(pr, new_pk, nodes_number*sizeof(float), cudaMemcpyDeviceToHost);
-
-	if (!ftime(&timer_msec)) {
-		timestamp_end = ((long long int) timer_msec.time) * 1000ll + 
-							(long long int) timer_msec.millitm;
-		}
-	else {
-	timestamp_end = -1;
-	}
-
-	printf("--------Finished--------\n");
-
-	cout << "Time to convergence: " << (float)(timestamp_end - timestamp_start) / 1000 << endl;
+	sauron_eye(pr, pk_gpu, new_pk, empty_gpu, r_gpu, c_gpu, d_gpu, factor_gpu, pk_len, data_len, empty_len_gpu, dampingFactor, precisionThreshold);
 
 	cudaFree(new_pk);
 	cudaFree(pk_gpu);
@@ -223,11 +255,13 @@ int main(){
 	cudaFree(empty_gpu);
 	cudaFree(empty_len_gpu);
 
-	for (int i = 0; i < 3; i++){
-		cout << pr[i] << endl; 
-	}
+	cout << endl;
+	
+	cout << "Writing output file..." << endl;
 
-	storePagerank(pr, nodes_number, "pk_result_full.csv");
+	storePagerank(pr, nodes_number, outputPath);
+
+	cout << "Done!" << endl;
 	
 	return 0;
 }
