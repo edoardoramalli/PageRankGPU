@@ -9,6 +9,10 @@
 * Python3
 * g++ 6.x
 
+INSERIRE DESCRIZIONE DEI VARI PASSAGGI E COSA FANNO. 
+DIRE CHE POSSONO ESSERE SKIPPATI USANDO BASH UNICA.
+DIRE CHE PER IL CLUSTER C'è UNA BASH SPECIFICA CHE USA IL COMANDO SRUN...
+
 ## Preprocessing
 
 0. **Download dataset** with `sh download_edgelists.sh`, the script will create a `"pagerank_contest_edgelists"` subdirectory in the current directory.
@@ -18,6 +22,7 @@
     * `-s` use default `"graph_small_e.edgelist"` and files `"graph_small_v.edgelist"` in folder extracted at step 1 as input and save in the current directory a `data_small.csv` file with the processed dataset.
     * `-f` use default `"graph_full_e.edgelist"` and files `"graph_full_v.edgelist"` in folder extracted at step 1 as input and save in the current directory a `data_full.csv` file with the processed dataset.
     * `-o outputPath` specify custom target file for dataset output.
+ 
 
 
 
@@ -26,10 +31,38 @@
 1. Compile the sources using `nvcc -arch=sm_35 -rdc=true -lcudadevrt main.cu handleDataset.cpp -o pagerank  -use_fast_math -std=c++11`. If your GPU does not support compute capabilities 3.5 or higher, the compilation will fail. This is required in order to exploit relocatable device code.
 2. Run the algorithm computation using `./pagerank [-i inputPath |-s|-f] [-o] [-d] [-t]`
 	* `-i inputPath` input CSV dataset file.
-    * `-s` uses as input "data_small.csv" and "pk_data_small.csv" as output.
-    * `-f` uses as input "data_full.csv" and "pk_data_full.csv" as output.
+    * `-s` uses as input `"data_small.csv"` and `"pk_data_small.csv"` as output.
+    * `-f` uses as input `"data_full.csv"` and `"pk_data_full.csv"` as output.
     * `[-o outputPath]` specify custom target file for results output.
     * `-d` specify custom damping value. Defaults to *0.85*
     * `-t` specify custom precision error threshold. Defaults to *10e-6*
 
 You can skip these steps by using the provided script to automate this phase `sh compileandrun.sh` and passing the parameters as specified above
+
+## Postprocessing
+
+1. **Elaborate Result** with `python3 GenerateResult.py [-v vertexPath -o pageRankPath -p pageRankPath|-s|-f] [-o]`
+    * `-v vertexPath` vertices file path.
+    * `-s` use default `"pk_data_small.csv"` and files `"graph_small_v.edgelist"` and save in the current directory a `result_data_small.csv` file with the processed pagerank result associated with the vertex name.
+    * `-f` use default `"pk_data_full.csv"` and files `"graph_full_v.edgelist"` and save in the current directory a `result_data_full.csv` file with the processed pagerank result associated with the vertex name.
+    * `-p pageRankPath` pageRank file path computed at previous phase.
+    * `-o outputPath` specify custom target file for dataset output.
+
+## Validation
+1. **Check Result** using the command `c++ checker.cpp -o checker' generate the binary to check the result.
+2. Run the code using `./checker -c checkerPath -t truthPath [-s]`
+	* `-c checkerPath` path of the file to be checked
+	* `-t truthPath` path of the truth file
+	* `-s` to indicate that the indices of the two files are strings
+# Result
+The time is calculate from the first call of the kernel... after the copy back of the result
+### CLUSTER
+* DataSet Small :
+* DataSet Full :
+
+### GTX...
+* DataSet Small :
+* DataSet Full :
+
+	
+
