@@ -58,7 +58,7 @@ def manage_vertex(path):
     with open(path, encoding='utf-8') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter='*')
         for row in csv_reader:
-            name_site = (row[0].replace('"', '')).strip()
+            name_site = row[0].strip()
             vertex.append('"' + name_site + '"')
     csv_file.close()
     return vertex
@@ -97,7 +97,8 @@ def main(argv):
     print(Bcolors.OKGREEN + "Writing CSV" + Bcolors.ENDC)
     with open(destination_path, "w+") as outfile:
         for it in final_list:
-            outfile.write(str(it))
+            tmp = u' '.join((it, "")).encode('utf-8').strip()
+            outfile.write(str(tmp))
             outfile.write("\n")
 
 

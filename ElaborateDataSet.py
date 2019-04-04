@@ -25,7 +25,7 @@ def parse_input(argv):
     try:
         opts, args = getopt.getopt(argv, "sfv:e:o:d:", ["efile=", "vfile=", "ofile=", "dfile="])
     except getopt.GetoptError:
-        print(Bcolors.FAIL + "Syntax Error" + Bcolors.ENDC)
+        print(Bcolors.FAIL + "Syntax Error " + str(getopt.GetoptError) + Bcolors.ENDC)
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-f':
