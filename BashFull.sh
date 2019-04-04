@@ -1,2 +1,2 @@
 #!/bin/bash
-sh BashBase.sh -e ./pagerank_contest_edgelists/graph_full_e.edgelist -v ./pagerank_contest_edgelists/graph_full_v.edgelist -n data_full.csv -d 0.85 -t 0.000001 -a ./pagerank_truth_values/full_directed_truth_string -b ./pagerank_truth_values/full_undirected_truth_string
+sh BashBase.sh -e ./pagerank_contest_edgelists/graph_full_e.edgelist -v ./pagerank_contest_edgelists/graph_full_v.edgelist -n full.csv -d 0.85 -t 0.000001 -a ./pagerank_truth_values/full_directed_truth_string -b ./pagerank_truth_values/full_undirected_truth_string

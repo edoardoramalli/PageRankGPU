@@ -79,10 +79,10 @@ def main(argv):
     pk_path, path_vertex, destination_path = parse_input(argv)
 
     list_of_vertex = manage_vertex(path_vertex)
-    print(Bcolors.OKBLUE + "Recovered Vertex List" + Bcolors.ENDC)
+    print(Bcolors.OKBLUE + "Reading Vertex List" + Bcolors.ENDC)
 
     pk_result = manage_pk(pk_path)
-    print(Bcolors.OKBLUE + "Recovered PageRank Result" + Bcolors.ENDC)
+    print(Bcolors.OKBLUE + "Reading PageRank Result" + Bcolors.ENDC)
 
     final_list = []
 

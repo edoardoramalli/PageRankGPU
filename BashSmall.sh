@@ -1,2 +1,2 @@
 #!/bin/bash
-sh BashBase.sh -e ./pagerank_contest_edgelists/graph_small_e.edgelist -v ./pagerank_contest_edgelists/graph_small_v.edgelist -n data_small.csv -d 0.85 -t 0.000001 -a ./pagerank_truth_values/small_directed_truth_string -b ./pagerank_truth_values/small_undirected_truth_string
+sh BashBase.sh -e ./pagerank_contest_edgelists/graph_small_e.edgelist -v ./pagerank_contest_edgelists/graph_small_v.edgelist -n small.csv -d 0.85 -t 0.000001 -a ./pagerank_truth_values/small_directed_truth_string -b ./pagerank_truth_values/small_undirected_truth_string
