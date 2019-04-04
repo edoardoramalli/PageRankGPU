@@ -65,6 +65,16 @@ if [ "$NAME" = "" ]; then
     exit 1
 fi
 
+if [ ! -f ./$TEST1 ]; then
+    printf "${PURPLE}Invalid Test1 Path${NC}\n"
+    exit 1
+fi
+
+if [ ! -f ./$TEST2 ]; then
+    printf "${PURPLE}Invalid Test1 Path${NC}\n"
+    exit 1
+fi
+
 # if [(( $(echo "$THRESHOLD < 0" |bc -l) ))] || (( $(echo "$THRESHOLD > 1" |bc -l) )) || (( $(echo "$THRESHOLD = 1" |bc -l) )); then
 #     printf "${PURPLE}Invalid Threshold Value${NC}\n"
 #     exit 1
@@ -89,9 +99,26 @@ printf "\n"
 
 ELABORATEBASH="data_$NAME"
 
-printf "${RED}Elaborate DataSet (1/6)${NC}\n\n"
-python3 ElaborateDataSet.py -v ${VERTEX} -e ${EDGE} -d ${DAMPING} -o $ELABORATEBASH
-printf "\n"
+if [ -f ./$ELABORATEBASH ]; then
+    read -p "File $ELABORATEBASH Already Present, Reuse it? (Y) (N)  "  scelta
+    if [ "$scelta" = "Y" ]; then
+        printf "\n"
+        printf "${RED}Reuse Elaborate DataSet (1/6)${NC}\n\n"
+    elif [ "$scelta" = "N" ]; then
+        printf "\n"
+        printf "${RED}Elaborate DataSet (1/6)${NC}\n\n"
+        python3 ElaborateDataSet.py -v ${VERTEX} -e ${EDGE} -d ${DAMPING} -o $ELABORATEBASH
+        printf "\n"
+    else
+        printf "${PURPLE}Invalid Input${NC}\n"
+        exit 2
+    fi
+else
+    printf "${RED}Elaborate DataSet (1/6)${NC}\n\n"
+    python3 ElaborateDataSet.py -v ${VERTEX} -e ${EDGE} -d ${DAMPING} -o $ELABORATEBASH
+    printf "\n"
+fi
+
 
 printf "${RED}Compiling CUDA source file (2/6)${NC}\n"
 nvcc -arch=sm_35 -rdc=true -lcudadevrt main.cu handleDataset.cpp -o pagerank -use_fast_math -std=c++11
