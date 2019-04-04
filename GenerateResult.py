@@ -2,6 +2,7 @@ import csv
 import sys
 import getopt
 import time
+from tqdm import tqdm
 
 
 class Bcolors:
@@ -96,9 +97,8 @@ def main(argv):
 
     print(Bcolors.OKGREEN + "Writing CSV" + Bcolors.ENDC)
     with open(destination_path, "w+") as outfile:
-        for it in final_list:
-            tmp = u' '.join((it, "")).encode('utf-8').strip()
-            outfile.write(str(tmp))
+        for it in tqdm(final_list):
+            outfile.write(str(it))
             outfile.write("\n")
 
 

@@ -85,7 +85,7 @@ def manage_vertex(path_vertex):
     with open(path_vertex, encoding='utf-8') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter='*')
         it = 0
-        for row in csv_reader:
+        for row in tqdm(csv_reader):
             name_site = (row[0].replace('"', '')).strip()
             dictionary[name_site] = it
             it = it + 1
@@ -101,7 +101,7 @@ def manage_edge(path_edge, dictionary, num_of_vertex):
     i = 0
     with open(path_edge, encoding='utf-8') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=' ')
-        for line in csv_reader:
+        for line in tqdm(csv_reader):
             name_site = (line[0].replace('"', '')).strip()
             reported_site = (line[1].replace('"', '')).strip()
             source_index = (dictionary[name_site])
