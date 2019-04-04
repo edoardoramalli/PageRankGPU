@@ -121,7 +121,7 @@ void sauronEye(float* pkCPU, float *oldPkGPU, float *newPkGPU, int *emptyColIndi
 	cout << endl;
 	cout << "Completed Convergence in " << i << " iterations" << endl;
 
-	cout << "Time to convergence: " << (float)(timestampEnd - timestampStart) / 1000 << endl;
+	cout << "Time to convergence: " << (float)(timestampEnd - timestampStart) / 1000 << " sec." << endl;
 
 	// Free allocated GPU resources
 
