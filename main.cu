@@ -9,11 +9,13 @@ using namespace std;
 
 #define DAMPING_F 0.85
 #define THRESHOLD 0.000001
+#define SYNCHRONIZE 1 /* Remove definition to disable "extra" deviceSynchronize calls after kernel launch */
 
 
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+/* Check for eventual CUDA errors */
 {
    if (code != cudaSuccess) 
    {
@@ -23,72 +25,80 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 
 
-void sauron_eye(float* pkCPU, float *old_pk, float *new_pk, int *empty_cols, int *row_indices, int *columns,
-	float *data, float *damping, int *pk_len, int *data_len, int *empty_cols_len, int dampingFactor, float precisionThreshold){
+void sauronEye(float* pkCPU, float *oldPkGPU, float *newPkGPU, int *emptyColIndices, int *rowIndicesGPU, int *columnIndicesGPU,
+	float *matrixDataGPU, float *dampingMatrixFactorGPU, int *pkLenGPU, int *matrixDataLenGPU,
+	 int *emptyColIndicesLenGPU, int dampingFactor, float precisionThreshold){
 
+	/* Concealed within his fortress, the lord of Mordor sees all.
+	His gaze pierces cloud, shadow, earth, and flesh.
+	You know of what I speak, Gandalf: a great Eye, lidless, wreathed in flame. */
 
-	int block_number = (*pk_len + BLOCKSIZE - 1) / BLOCKSIZE;
-	int uniform_blocks = (*empty_cols_len + BLOCKSIZE - 1)/BLOCKSIZE;
-	int mul_blocks = (*data_len + BLOCKSIZE -1)/BLOCKSIZE;
+	int blockNumber = (*pkLenGPU + BLOCKSIZE - 1) / BLOCKSIZE;
+	int uniformReductionBlocks = (*emptyColIndicesLenGPU + BLOCKSIZE - 1)/BLOCKSIZE;
+	int mulBlocks = (*matrixDataLenGPU + BLOCKSIZE -1)/BLOCKSIZE;
 	
-	float *result, *out, *out_unif, *empty_contrib, *empty_value, *weighted, *thresholdGPU;
+	float *result, *out, *emptyColumnsContrib, *emptyColumnValue, *thresholdGPU;
 	bool *loop;
+
 	cudaMalloc(&thresholdGPU, sizeof(float));
 	cudaMalloc(&result, sizeof(float));
-	cudaMallocManaged(&empty_contrib, sizeof(float));
+	cudaMalloc(&emptyColumnsContrib, sizeof(float));
 	cudaMallocManaged(&loop, sizeof(bool));
-	cudaMalloc(&out, sizeof(float)*block_number);
-	cudaMalloc(&out_unif, sizeof(float)*block_number);
-	cudaMallocManaged(&empty_value, sizeof(float));
-	cudaMalloc(&weighted, *pk_len*sizeof(float));
+	cudaMalloc(&out, sizeof(float)*blockNumber);
+	cudaMalloc(&emptyColumnValue, sizeof(float));
 
 	
 	int i = 0;
 
 	float * tmp;
 
-	float teleportation = dampingFactor/ *pk_len;
-	cudaMemcpy(empty_value, &teleportation, sizeof(float),cudaMemcpyHostToDevice);
+	float teleportation = dampingFactor/ *pkLenGPU;
+	cudaMemcpy(emptyColumnValue, &teleportation, sizeof(float),cudaMemcpyHostToDevice);
 	cudaMemcpy(thresholdGPU, &precisionThreshold, sizeof(float), cudaMemcpyHostToDevice);
 
 	
 	*loop = true;
 
 	// Get timestamp
-	struct timeb timer_msec;
-	long long int timestamp_start, timestamp_end; /* timestamp in millisecond. */
+	struct timeb timerMsec;
+	long long int timestampStart, timestampEnd; /* timestamp in millisecond. */
 	
 	while (*loop){
-		//printf("-------------- Iteration %d ----------------\n", i);
-		if (i!=0){
-			tmp = old_pk;
-			old_pk = new_pk;
-			new_pk = tmp;
-			cudaMemset(new_pk, 0, *pk_len*sizeof(float));
-		}
-		else{
-			if (!ftime(&timer_msec)) {
-				timestamp_start = ((long long int) timer_msec.time) * 1000ll + 
-									(long long int) timer_msec.millitm;
-			}
-			else {
-				timestamp_start = -1;
-			}
-		}
-
-
-		uniform_reduction <BLOCKSIZE> <<<uniform_blocks, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>> (old_pk, empty_cols, out_unif, empty_value, *empty_cols_len);
-		cuda_reduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>>(out_unif, empty_contrib, uniform_blocks);		
-
-		pk_multiply<BLOCKSIZE> <<<mul_blocks, BLOCKSIZE>>>(data, columns, row_indices, old_pk, new_pk, *data_len, pk_len);
-
-
 		*loop = false;
 
+		if (i!=0){
+			// Swap pointers to avoid allocating new memory
+			tmp = oldPkGPU;
+			oldPkGPU = newPkGPU;
+			newPkGPU = tmp;
 
-		sumAll<BLOCKSIZE> <<< block_number, BLOCKSIZE >>> (empty_contrib, damping, new_pk, pk_len);
+			cudaMemset(newPkGPU, 0, *pkLenGPU*sizeof(float));	/* Set new pagerank to 0 */
+		}
+		else{
+			// Get starting timestamp
+			if (!ftime(&timerMsec)) {
+				timestampStart = ((long long int) timerMsec.time) * 1000ll + 
+									(long long int) timerMsec.millitm;
+			}
+			else {
+				timestampStart = -1;
+			}
+		}
 
-		check_termination<1> <<<1, 1>>>(old_pk, new_pk, out, result, loop, pk_len, block_number, thresholdGPU);
+		uniformReduction <BLOCKSIZE> <<<uniformReductionBlocks, BLOCKSIZE, BLOCKSIZE *sizeof(float)>>> (oldPkGPU, emptyColIndices, out, emptyColumnValue, *emptyColIndicesLenGPU);
+		cudaReduction <BLOCKSIZE> <<< 1, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>>(out, emptyColumnsContrib, uniformReductionBlocks);		
+		#ifdef SYNCHRONIZE
+		cudaDeviceSynchronize();
+		#endif
+
+		pkMultiply<BLOCKSIZE> <<<mulBlocks, BLOCKSIZE>>>(matrixDataGPU, columnIndicesGPU, rowIndicesGPU, oldPkGPU, newPkGPU, *matrixDataLenGPU, pkLenGPU);
+		#ifdef SYNCHRONIZE
+		cudaDeviceSynchronize();
+		#endif
+
+		sumAll<BLOCKSIZE> <<< blockNumber, BLOCKSIZE >>> (emptyColumnsContrib, dampingMatrixFactorGPU, newPkGPU, pkLenGPU);
+
+		checkTermination<1> <<<1, 1>>>(oldPkGPU, newPkGPU, out, result, loop, pkLenGPU, blockNumber, thresholdGPU);
 		//printf("Check termination\n");
 
 		i++;
@@ -96,32 +106,37 @@ void sauron_eye(float* pkCPU, float *old_pk, float *new_pk, int *empty_cols, int
 		cudaDeviceSynchronize();
 	}
 
-	// Copy data back
-	gpuErrchk(cudaMemcpy(pkCPU, new_pk, *pk_len * sizeof(float), cudaMemcpyDeviceToHost));
+	// Copy matrixDataGPU back
+	gpuErrchk(cudaMemcpy(pkCPU, newPkGPU, *pkLenGPU * sizeof(float), cudaMemcpyDeviceToHost));
 
-	if (!ftime(&timer_msec)) {
-		timestamp_end = ((long long int) timer_msec.time) * 1000ll + 
-							(long long int) timer_msec.millitm;
+	// Get ending timestamp
+	if (!ftime(&timerMsec)) {
+		timestampEnd = ((long long int) timerMsec.time) * 1000ll + 
+							(long long int) timerMsec.millitm;
 		}
 	else {
-	timestamp_end = -1;
+	timestampEnd = -1;
 	}
 
 	cout << endl;
 	cout << "Completed Convergence in " << i << " iterations" << endl;
 
-	cout << "Time to convergence: " << (float)(timestamp_end - timestamp_start) / 1000 << endl;
+	cout << "Time to convergence: " << (float)(timestampEnd - timestampStart) / 1000 << endl;
 
+	// Free allocated GPU resources
 
+	cudaFree(thresholdGPU);
 	cudaFree(result);
+	cudaFree(emptyColumnsContrib);
 	cudaFree(loop);
 	cudaFree(out);
+	cudaFree(emptyColumnValue);
 }
 
 
 int main(int argc, char *argv[]){
 
-	int nodes_number, col_indices_number, empty_len;
+	int verticesNumber, colIndicesLen, emptyLen;
 	float dampingMatrix;
 	float dampingFactor = DAMPING_F;
 	float precisionThreshold = THRESHOLD;
@@ -176,7 +191,7 @@ int main(int argc, char *argv[]){
 	}
 
 	if (dampingFactor >= 1 | dampingFactor < 0){
-		cout << "Damping too big! Input a damping between 0 and 1" << endl;
+		cout << "Damping too big! Input a dampingMatrixFactorGPU between 0 and 1" << endl;
 		exit(-1);
 	}
 
@@ -188,78 +203,83 @@ int main(int argc, char *argv[]){
 
 	/*-----------------------------------------------------------------------*/
 
-	loadDimensions(inputPath, nodes_number, col_indices_number, dampingMatrix, empty_len);
+	loadDimensions(inputPath, verticesNumber, colIndicesLen, dampingMatrix, emptyLen);
 
-	int *row_ptrs = (int*) malloc(col_indices_number * sizeof(int));
-	int *col_indices = (int*) malloc(col_indices_number * sizeof(int));
-	int *empty_cols = (int*) malloc(empty_len * sizeof(int));
-	float *connections = (float*) malloc(col_indices_number * sizeof(float));
-
-	cout << "Allocated vectors succesfully!" << endl;
+	cout << "Nodes: " << verticesNumber << endl;
 	
-	loadDataset(inputPath, row_ptrs, col_indices, connections, empty_cols);
+	int *rowIndices = (int*) malloc(colIndicesLen * sizeof(int));
+	int *colIndices = (int*) malloc(colIndicesLen * sizeof(int));
+	int *emptyColIndices = (int*) malloc(emptyLen * sizeof(int));
+	float *matrixData = (float*) malloc(colIndicesLen * sizeof(float));
+
+	cout << "Allocated matrixDataGPU vectors succesfully!" << endl;
+	
+	loadDataset(inputPath, rowIndices, colIndices, matrixData, emptyColIndices);
 
 	cout << "Allocate and initialize PageRank" << endl;
 
-	cout << "Nodes: " << nodes_number << endl;
 	
-	float *pr = (float*) malloc(nodes_number*sizeof(float));
-	float uniform_p = 1/(float)nodes_number;
-	// cout << "Uniform_p " << uniform_p << endl;
-	for (int i = 0; i < nodes_number; i++){
-		pr[i] = uniform_p;
+	float *pkCPU = (float*) malloc(verticesNumber*sizeof(float));
+	float pkInit = 1/(float)verticesNumber;
+
+	for (int i = 0; i < verticesNumber; i++){
+		pkCPU[i] = pkInit;
 	}
 
 	cout << "Finished allocation" << endl;
 
 
 	// GPU variables
-	float *pk_gpu, *new_pk, *factor_gpu, *d_gpu;
-	int *c_gpu, *r_gpu, *data_len, *pk_len, *empty_len_gpu, *empty_gpu;
+	float *pkGPU, *newPkGPU, *dampingMatrixFactorGPU, *matrixDataGPU;
+	int *columnIndicesGPU, *rowIndicesGPU, *matrixDataLenGPU, *pkLenGPU, *emptyColIndicesLenGPU, *emptyIndicesGPU;
 
 	// Allocate device memory
 
-	cudaMalloc(&pk_gpu, nodes_number*sizeof(float));
-	cudaMalloc(&new_pk, nodes_number*sizeof(float));
-	cudaMalloc(&factor_gpu, sizeof(float));
-	cudaMalloc(&c_gpu, col_indices_number*sizeof(int));
-	cudaMalloc(&d_gpu, col_indices_number*sizeof(float));
-	cudaMalloc(&r_gpu, col_indices_number*sizeof(int));
-	cudaMallocManaged(&pk_len, sizeof(int));
-	cudaMallocManaged(&data_len, sizeof(int));
-	cudaMallocManaged(&empty_len_gpu, sizeof(int));
-	cudaMalloc(&empty_gpu, empty_len*sizeof(int));
+	cudaMalloc(&pkGPU, verticesNumber*sizeof(float));
+	cudaMalloc(&newPkGPU, verticesNumber*sizeof(float));
+	cudaMalloc(&dampingMatrixFactorGPU, sizeof(float));
+	cudaMalloc(&columnIndicesGPU, colIndicesLen*sizeof(int));
+	cudaMalloc(&matrixDataGPU, colIndicesLen*sizeof(float));
+	cudaMalloc(&rowIndicesGPU, colIndicesLen*sizeof(int));
+	cudaMallocManaged(&pkLenGPU, sizeof(int));
+	cudaMallocManaged(&matrixDataLenGPU, sizeof(int));
+	cudaMallocManaged(&emptyColIndicesLenGPU, sizeof(int));
+	cudaMalloc(&emptyIndicesGPU, emptyLen*sizeof(int));
 
-	// Populate device data from main memory
+	// Populate device matrixDataGPU from main memory
 
-	cudaMemcpy(pk_gpu, pr, nodes_number*sizeof(float), cudaMemcpyHostToDevice);
-	cudaMemcpy(factor_gpu, &dampingMatrix, sizeof(float), cudaMemcpyHostToDevice);
-	cudaMemcpy(c_gpu, col_indices, sizeof(int)*col_indices_number, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_gpu, connections, sizeof(float)*col_indices_number, cudaMemcpyHostToDevice);
-	cudaMemcpy(r_gpu, row_ptrs, sizeof(int)*col_indices_number, cudaMemcpyHostToDevice);	
-	cudaMemcpy(pk_len, &nodes_number, sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(data_len, &col_indices_number, sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(empty_len_gpu, &empty_len, sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(empty_gpu, empty_cols, sizeof(int)*empty_len, cudaMemcpyHostToDevice);	
+	cudaMemcpy(pkGPU, pkCPU, verticesNumber*sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(dampingMatrixFactorGPU, &dampingMatrix, sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(columnIndicesGPU, colIndices, sizeof(int)*colIndicesLen, cudaMemcpyHostToDevice);
+	cudaMemcpy(matrixDataGPU, matrixData, sizeof(float)*colIndicesLen, cudaMemcpyHostToDevice);
+	cudaMemcpy(rowIndicesGPU, rowIndices, sizeof(int)*colIndicesLen, cudaMemcpyHostToDevice);	
+	cudaMemcpy(pkLenGPU, &verticesNumber, sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(matrixDataLenGPU, &colIndicesLen, sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(emptyColIndicesLenGPU, &emptyLen, sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(emptyIndicesGPU, emptyColIndices, sizeof(int)*emptyLen, cudaMemcpyHostToDevice);	
+
+	// Start algorithm iteration
 	
-	sauron_eye(pr, pk_gpu, new_pk, empty_gpu, r_gpu, c_gpu, d_gpu, factor_gpu, pk_len, data_len, empty_len_gpu, dampingFactor, precisionThreshold);
+	sauronEye(pkCPU, pkGPU, newPkGPU, emptyIndicesGPU, rowIndicesGPU, columnIndicesGPU,
+		 matrixDataGPU, dampingMatrixFactorGPU, pkLenGPU, matrixDataLenGPU,
+		  emptyColIndicesLenGPU, dampingFactor, precisionThreshold);
 
-	cudaFree(new_pk);
-	cudaFree(pk_gpu);
-	cudaFree(r_gpu);
-	cudaFree(c_gpu);
-	cudaFree(d_gpu);
-	cudaFree(factor_gpu);
-	cudaFree(pk_len);
-	cudaFree(data_len);
-	cudaFree(empty_gpu);
-	cudaFree(empty_len_gpu);
+	cudaFree(newPkGPU);
+	cudaFree(pkGPU);
+	cudaFree(rowIndicesGPU);
+	cudaFree(columnIndicesGPU);
+	cudaFree(matrixDataGPU);
+	cudaFree(dampingMatrixFactorGPU);
+	cudaFree(pkLenGPU);
+	cudaFree(matrixDataLenGPU);
+	cudaFree(emptyIndicesGPU);
+	cudaFree(emptyColIndicesLenGPU);
 
 	cout << endl;
 	
 	cout << "Writing output file..." << endl;
 
-	storePagerank(pr, nodes_number, outputPath);
+	storePagerank(pkCPU, verticesNumber, outputPath);
 
 	cout << "Done!" << endl;
 	

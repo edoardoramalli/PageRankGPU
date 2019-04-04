@@ -3,7 +3,13 @@
 
 #define BLOCKSIZE 128
 
+/* Functions involving vector reduction are replicated in order to avoid
+ control flow alterations that would cause warp inefficiency*/
+
 template <unsigned int blockSize> __device__ void warpReduce(volatile float *sdata, unsigned int tid) {
+    /* Loop unrolling performed in device code
+    to optimize reduction performance */
+
     if (blockSize >= 64) sdata[tid] += sdata[tid + 32];
     if (blockSize >= 32) sdata[tid] += sdata[tid + 16];
     if (blockSize >= 16) sdata[tid] += sdata[tid + 8];
@@ -14,18 +20,28 @@ template <unsigned int blockSize> __device__ void warpReduce(volatile float *sda
 
 __device__ inline void floatAtomicAdd(float* address, float value){
 
-  float old = value;  
-  float new_old;
+    /*  Try writing on atomic variable until writing is truly performed */
 
-  do{
-	new_old = atomicExch(address, 0.0f);
-	new_old += old;
-  }
-  while ((old = atomicExch(address, new_old))!=0.0f);
+    float old = value;  
+    float new_old;
+
+    do{
+        new_old = atomicExch(address, 0.0f);
+        new_old += old;
+    }
+    while ((old = atomicExch(address, new_old))!=0.0f);
 }
 
-template <unsigned int blockSize> __global__ void pk_multiply(float* data, int* columns, int* rows, float* old_pk, float* new_pk, unsigned int len, int *pk_len){
-	size_t tid = threadIdx.x,    
+template <unsigned int blockSize> __global__ void pkMultiply(float* data, int* columns, int* rows, float* old_pk, float* new_pk, unsigned int len, int *pk_len){
+    /*
+    Taking as input data, columns and rows from a (row, column) --> data representation
+    perform partial row by column matrix multiplication element by element, 
+    where row elements are not null.
+    Add multiplication result to new pagerank vector at row equal to the
+    row of the matrix we are currently considering
+    */
+    
+    size_t tid = threadIdx.x,    
 	i = blockIdx.x * blockSize + tid;
 	
 	if(i < len){
@@ -35,7 +51,18 @@ template <unsigned int blockSize> __global__ void pk_multiply(float* data, int* 
 }
 
 template <unsigned int blockSize> __global__ void sumAll(float *empty_contrib, float *damping_matrix, float *new_pk, int *pk_len){
-	size_t tid = threadIdx.x,    
+    /* Sum all the partial contributions:
+        - empty columns contribute, in CSR representation of T transposed 
+        (before adding teleportation probabilities) are discarded. These columns generate a 
+        contribute equal for all rows and constant within each iteration.
+        - damping matrix: since the sum of all elements of PageRank vector equals 1,
+        the product with a constant (throughout all iterations) matrix filled with equal values 
+        is a vector filled with the same value for all iterations. This value is calculated once in 
+        preprocessing steps.
+        - new pagerank: values previously calculated by pk_multiply
+    */
+    
+    size_t tid = threadIdx.x,    
 	i = blockIdx.x * blockSize + tid;
 	
 	if(i < *pk_len){
@@ -43,8 +70,11 @@ template <unsigned int blockSize> __global__ void sumAll(float *empty_contrib, f
 	}
 }
 
-template <unsigned int blockSize> __global__ void cuda_reduction(float *array_in, float *reduct, size_t array_len) {
-	/*Parallel block reduction*/
+template <unsigned int blockSize> __global__ void cudaReduction(float *array_in, float *reduct, size_t array_len) {
+    /*Parallel block reduction from 
+    CUDA seminar tutorial (kernel #7)
+    https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
+    */
 
     extern volatile __shared__ float sdata[];
     
@@ -81,7 +111,7 @@ template <unsigned int blockSize> __global__ void cuda_reduction(float *array_in
 	} 
 }
 
-template <unsigned int blockSize> __global__ void uniform_reduction(float *old_pk, int *empty_cols,float *reduct, float *factor, size_t array_len) {
+template <unsigned int blockSize> __global__ void uniformReduction(float *old_pk, int *empty_cols,float *reduct, float *factor, size_t array_len) {
 	/* Calculate contribution from empty columns to each line:
 	sum pagerank at index equal to empty column index in T',
 	then multiply by the teleportation probability */
@@ -121,42 +151,11 @@ template <unsigned int blockSize> __global__ void uniform_reduction(float *old_p
 	} 
 }
 
-template <unsigned int blockSize> __global__ void weighted_sum_partial(float *pagerank_in, float *reduct,
-	int *column, float *mat_data, size_t row_len, size_t pk_len){
-	/* Perform first step of pagerank row by column product
-	by multiplying T' row by pagerank elements, only for non null T' elements.
-	T is input as a CSR matrix (3 arrays: row pointers, columns, data)
-	*/
-
-	extern volatile __shared__ float sdata[];
-	size_t  tid = threadIdx.x, gridSize = blockSize *gridDim.x, i = blockIdx.x * blockSize + tid;
-	sdata[tid] = 0;
-	while (i < row_len) {
-		sdata[tid] += mat_data[i]*pagerank_in[column[i]];
-		i += gridSize;
-	}
-	__syncthreads();
-	if (blockSize >= 512) {
-		if (tid < 256) sdata[tid] += sdata[tid + 256];
-		__syncthreads();
-	}
-	if (blockSize >= 256) {
-		if (tid < 128) sdata[tid] += sdata[tid + 128];
-		__syncthreads();
-	}
-	if (blockSize >= 128) {
-		if (tid <  64) sdata[tid] += sdata[tid + 64];
-		__syncthreads();
-	}
-	if (tid < 32) {
-		warpReduce<blockSize>(sdata, tid);
-	}
-	if (tid == 0) reduct[blockIdx.x] = sdata[0];
-}
-
-
-template <unsigned int blockSize> __global__ void termination_reduction(float *new_pk, float *old_pk, float *reduct, size_t array_len) {
+template <unsigned int blockSize> __global__ void terminationReduction(float *new_pk, float *old_pk, float *reduct, size_t array_len) {
     extern volatile __shared__ float sdata[];
+
+    /* Calculate reduction to block size performing 
+    difference of two source vectors */
     
     size_t tid = threadIdx.x,
     gridSize = blockSize * gridDim.x,
@@ -192,17 +191,19 @@ template <unsigned int blockSize> __global__ void termination_reduction(float *n
 	} 
 }
 
-
-template <unsigned int blockSize> __global__ void check_termination(float *old_pk, float *new_pk, float* out, float* result, bool *loop, 
-	int *pk_len, size_t out_len, float *precision){
+template <unsigned int blockSize> __global__ void checkTermination(float *old_pk, float *new_pk, float* out, float* result, bool *loop, 
+    
+    /* Check L2 norm of difference of pageRank vectors,
+    loop variable is set true only if precision has not been reached */
+    
+    int *pk_len, size_t out_len, float *precision){
 	int block_number = (*pk_len + BLOCKSIZE - 1) / BLOCKSIZE;
 
-	termination_reduction <BLOCKSIZE> <<<block_number, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>> (new_pk, old_pk, out, *pk_len);
-	cuda_reduction <BLOCKSIZE> <<<1, BLOCKSIZE, BLOCKSIZE*sizeof(float) >>> (out, result, out_len);
+	terminationReduction <BLOCKSIZE> <<<block_number, BLOCKSIZE, BLOCKSIZE*sizeof(float)>>> (new_pk, old_pk, out, *pk_len);
+	cudaReduction <BLOCKSIZE> <<<1, BLOCKSIZE, BLOCKSIZE*sizeof(float) >>> (out, result, out_len);
 	cudaDeviceSynchronize();
 	
 	float error = sqrtf(*result);
-	//printf("Error  %.10f\n", error);
 	if (error > *precision) {
 		*loop = true;
 	}
