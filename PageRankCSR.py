@@ -22,7 +22,7 @@ def parse_input(argv):
     soglia = 1
     damping = 0
     try:
-        opts, args = getopt.getopt(argv, "sfi:o:d:t", ["dfile=", "ifile=", "ofile=", "tfile="])
+        opts, args = getopt.getopt(argv, "sfi:o:d:t:", ["dfile=", "ifile=", "ofile=", "tfile=", "dfile="])
     except getopt.GetoptError:
         print(Bcolors.FAIL + "Syntax Error" + Bcolors.ENDC)
         sys.exit(2)
@@ -48,7 +48,7 @@ def parse_input(argv):
             destination_path = arg
         elif opt in ("-t", "--ofile"):
             soglia = arg
-        elif opt in ("-d", "--ofile"):
+        elif opt in ("-d", "--dfile"):
             damping = arg
     if filename == "":
         print(Bcolors.FAIL + "Missing Path Input" + Bcolors.ENDC)

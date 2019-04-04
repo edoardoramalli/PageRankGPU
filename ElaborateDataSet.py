@@ -5,8 +5,6 @@ import getopt
 import time
 from tqdm import tqdm
 
-DAMPING = 0.85
-
 
 class Bcolors:
     HEADER = '\033[95m'
@@ -23,8 +21,9 @@ def parse_input(argv):
     path_edge = ""
     path_vertex = ""
     destination_path = ""
+    damping_factor = 0.85
     try:
-        opts, args = getopt.getopt(argv, "sfv:e:o:", ["efile=", "vfile=", "ofile="])
+        opts, args = getopt.getopt(argv, "sfv:e:o:d:", ["efile=", "vfile=", "ofile=", "dfile="])
     except getopt.GetoptError:
         print(Bcolors.FAIL + "Syntax Error" + Bcolors.ENDC)
         sys.exit(2)
@@ -45,6 +44,8 @@ def parse_input(argv):
             path_edge = arg
         elif opt in ("-o", "--ofile"):
             destination_path = arg
+        elif opt in ("-d", "--dfile"):
+            damping_factor = arg
     if path_edge == "":
         print(Bcolors.FAIL + "Missing Path Edge" + Bcolors.ENDC)
         exit(2)
@@ -54,15 +55,28 @@ def parse_input(argv):
     if destination_path == "":
         print(Bcolors.FAIL + "Missing Path Destination" + Bcolors.ENDC)
         exit(2)
-    return path_edge, path_vertex, destination_path
+    if damping_factor == "":
+        print(Bcolors.FAIL + "Invalid Damping" + Bcolors.ENDC)
+        exit(2)
+    damping_factor = float(damping_factor)
+    if not 0 < damping_factor < 1:
+        print(Bcolors.FAIL + "Invalid Damping (0 < d < 1)" + Bcolors.ENDC)
+        exit(2)
+
+    print(Bcolors.WARNING + "Edge Path : " + path_edge + Bcolors.ENDC)
+    print(Bcolors.WARNING + "Vertex Path : " + path_vertex + Bcolors.ENDC)
+    print(Bcolors.WARNING + "Output Path : " + destination_path + Bcolors.ENDC)
+    print(Bcolors.WARNING + "Damping Factor : " + str(damping_factor) + Bcolors.ENDC)
+
+    return path_edge, path_vertex, destination_path, damping_factor
+
 
 def compute_empty_row(vector):
     result = []
     for i in range(0, len(vector) - 1):
-        if vector[i] == vector[i+1]:
+        if vector[i] == vector[i + 1]:
             result.append(i)
     return result
-
 
 
 def manage_vertex(path_vertex):
@@ -109,13 +123,11 @@ def manage_edge(path_edge, dictionary, num_of_vertex):
 
     a_matrix = csr_matrix((data, (row, column)), (dimension, dimension))
 
-
     print(Bcolors.OKBLUE + "Creating d^-1 vector..." + Bcolors.ENDC)
     d = a_matrix.sum(axis=1)
     d_pr = []
     for el in tqdm(d.transpose().tolist()[0]):
         d_pr.append((1.0 / el) if el != 0 else 0)
-
 
     d_inv = diags(d_pr, 0)
 
@@ -128,11 +140,10 @@ def manage_edge(path_edge, dictionary, num_of_vertex):
     return t_trans, t_matrix
 
 
-def compute_damping_matrix(num_of_vertex):
-    # (1-d)|E|/|V|
-    a = (1 - DAMPING) / num_of_vertex
-    # qua prima non c'era il + 1
+def compute_damping_matrix(num_of_vertex, damping_factor):
+    a = (1 - damping_factor) / num_of_vertex
     return a
+
 
 def compute_row(v):
     rr = []
@@ -158,7 +169,7 @@ def manage_time(rr):
 
 
 def main(argv):
-    path_edge, path_vertex, destination_path = parse_input(argv)
+    path_edge, path_vertex, destination_path, damping_factor = parse_input(argv)
 
     dictionary, num_of_vertex = manage_vertex(path_vertex)
 
@@ -168,10 +179,10 @@ def main(argv):
 
     print(Bcolors.OKBLUE + "Compute Damping Matrix (Single Value)..." + Bcolors.ENDC)
 
-    damping_matrix = compute_damping_matrix(num_of_vertex)
+    damping_matrix = compute_damping_matrix(num_of_vertex, damping_factor)
 
     print(Bcolors.OKBLUE + "Multiply T * Damping..." + Bcolors.ENDC)
-    t_final = DAMPING * t
+    t_final = damping_factor * t
 
     print(Bcolors.OKBLUE + "Compute Empty Row..." + Bcolors.ENDC)
     empty_row = compute_empty_row(t_before_trans.indptr)
@@ -179,7 +190,6 @@ def main(argv):
 
     print(Bcolors.OKBLUE + "Compute Row with Data..." + Bcolors.ENDC)
     rows = compute_row(t_final.indptr)
-    lunghezza_full_row = len(rows)
 
     print(Bcolors.OKGREEN + "Write CSV" + Bcolors.ENDC)
 
@@ -200,4 +210,4 @@ if __name__ == "__main__":
     start = time.time()
     main(sys.argv[1:])
     end = time.time()
-    print(Bcolors.HEADER + manage_time(end-start) + Bcolors.ENDC)
+    print(Bcolors.HEADER + manage_time(end - start) + Bcolors.ENDC)
