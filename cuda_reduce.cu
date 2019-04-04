@@ -204,7 +204,7 @@ template <unsigned int blockSize> __global__ void checkTermination(float *old_pk
 	cudaDeviceSynchronize();
 	
 	float error = sqrtf(*result);
-	if (error > *precision) {
+	if (error >= *precision) {
 		*loop = true;
 	}
 

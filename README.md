@@ -1,1 +1,35 @@
 # PageRankGPU
+
+**PageRank** algorithm implementation in **C++** exploiting **CUDA** to access NVIDIA's GPUs parallel computing capabilities.
+
+### Prerequisites
+
+* CUDA-enabled GPU device with compute capabilities 3.5 or higher
+* CUDA toolkit 9.x
+* Python3
+* g++ 6.x
+
+## Preprocessing
+
+0. **Download dataset** with `sh download_edgelists.sh`, the script will create a `"pagerank_contest_edgelists"` subdirectory in the current directory.
+1. **Elaborate dataset** with `python3 ElaborateDataset.py [-v vertexPath -e edgePath|-s|-f] [-o]` 
+    * `-v vertexPath` vertices file path.
+    * `-e edgePath` edges file path.
+    * `-s` use default `"graph_small_e.edgelist"` and files `"graph_small_v.edgelist"` in folder extracted at step 1 as input and save in the current directory a `data_small.csv` file with the processed dataset.
+    * `-f` use default `"graph_full_e.edgelist"` and files `"graph_full_v.edgelist"` in folder extracted at step 1 as input and save in the current directory a `data_full.csv` file with the processed dataset.
+    * `-o outputPath` specify custom target file for dataset output.
+
+
+
+## Compilation and computation
+
+1. Compile the sources using `nvcc -arch=sm_35 -rdc=true -lcudadevrt main.cu handleDataset.cpp -o pagerank  -use_fast_math -std=c++11`. If your GPU does not support compute capabilities 3.5 or higher, the compilation will fail. This is required in order to exploit relocatable device code.
+2. Run the algorithm computation using `./pagerank [-i inputPath |-s|-f] [-o] [-d] [-t]`
+	* `-i inputPath` input CSV dataset file.
+    * `-s` uses as input "data_small.csv" and "pk_data_small.csv" as output.
+    * `-f` uses as input "data_full.csv" and "pk_data_full.csv" as output.
+    * `[-o outputPath]` specify custom target file for results output.
+    * `-d` specify custom damping value. Defaults to *0.85*
+    * `-t` specify custom precision error threshold. Defaults to *10e-6*
+
+You can skip these steps by using the provided script to automate this phase `sh compileandrun.sh` and passing the parameters as specified above
