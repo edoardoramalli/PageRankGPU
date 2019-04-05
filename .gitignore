@@ -9,3 +9,13 @@
 venv/
 
 \.vscode/
+
+test
+
+pagerank_contest_edgelists/
+
+pagerank_truth_values/
+
+checker
+
+pagerank

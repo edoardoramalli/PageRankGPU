@@ -54,15 +54,18 @@ You can skip these steps by using the provided script to automate this phase `sh
 	* `-c checkerPath` path of the file to be checked
 	* `-t truthPath` path of the truth file
 	* `-s` to indicate that the indices of the two files are strings
-# Result
-The time is calculate from the first call of the kernel... after the copy back of the result
-### CLUSTER
-* DataSet Small :
-* DataSet Full :
+# Results
+The time is calculated from the first call of the kernel to the completion of the pagerank final values from GPU memory to main memory.
+Damping factor selected for the tests is *0.85*.
+Precision threshold is *0.000001*.
 
-### GTX...
-* DataSet Small :
-* DataSet Full :
+### CLUSTER FACILITY (GTX 960 with 2GB of GRAM, 8 cores Intel core i7 and 32GB of RAM)
+* DataSet **"Small"**:
+* DataSet **"Full"**:
+
+### EVGA GTX 1060 OC (6GB GDDR5), dual-core Intel core i7 4650U and 8 GB of RAM
+* DataSet **"Small"**: 22 iterations, time to covergence: *0.034* s.
+* DataSet **"Full"**: 34 iterations, time to covergence: *3.666* s.
 
 	
 

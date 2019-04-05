@@ -127,7 +127,8 @@ printf "\n"
 PKCOMPUTED="pk_$ELABORATEBASH"
 
 printf "${RED}Execute pagRank Algorithm (3/6)${NC}\n\n"
-srun -N1 --gres=gpu:1  ./pagerank -i $ELABORATEBASH -o $PKCOMPUTED -d $DAMPING -t $THRESHOLD
+#srun -N1 --gres=gpu:1  ./pagerank -i $ELABORATEBASH -o $PKCOMPUTED -d $DAMPING -t $THRESHOLD
+./pagerank -i $ELABORATEBASH -o $PKCOMPUTED -d $DAMPING -t $THRESHOLD
 printf "\n"
 
 PKRESULT="result_$NAME"
