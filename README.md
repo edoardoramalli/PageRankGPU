@@ -9,11 +9,25 @@
 * Python3
 * g++ 6.x
 
-INSERIRE DESCRIZIONE DEI VARI PASSAGGI E COSA FANNO. 
-DIRE CHE POSSONO ESSERE SKIPPATI USANDO BASH UNICA.
-DIRE CHE PER IL CLUSTER C'è UNA BASH SPECIFICA CHE USA IL COMANDO SRUN...
 
-## Preprocessing
+## Bash Files
+In the repository are provided three bash file that should simplify the execution of all procedure. Otherwise, if you prefer a custom execution, step by step, you can follow the four steps above.
+- **BaseBash.sh** is a base bash file that allows you to automize all the phase, specifiyng the input parameters. `sh BashBase.sh -n testName -v vertexPath -e edgePath -t thresholdValue -d dampingFactor [-a test1Path] [-b test2Path] [-c cpuCommand] [-g gpuCommand]`
+	* `-n testName` name of the test. It will be used to create final and intermediate `.csv` files.
+	* `-v vertexPath` vertices file path.
+    * `-e edgePath` edges file path.
+    * `-t thresholdValue` specify custom precision error threshold.
+    * `-d dampingFactor` specify custom damping value.
+    * `-a test1Path` pageRank file path to be compared with the compute one.
+    * `-b test2Path` vertices file path to be compared with the compute one.
+    * `-c cpuCommand` optional cpu command.
+    * `-g gpuCommand` optional gpu command.
+- **BashSmall** is a bash file that simplify the execution. It relies on the fact that in the execution folder of `sh BashSmall.sh [-l]` is present a folder `pagerank_contest_edgelists` within `graph_small_e.edgelist` and `graph_small_v.edgelist` files that represent the `.csv` files for edges and vertices respectively. The bash file also uses two files `small_directed_truth_string` and `small_undirected_truth_string` in the folder `pagerank_truth_values` that are the "truth" value of the pageRank with which they will be compared.
+	* `-l` is a flag that, if presents, means that the execution of the procedure will be local an not in a remote cluster. Otherwise, if this is not present, the `cpuCommand` is`srun -w slurm-cuda-master` and the `gpuCommand` is `srun -N1 --gres=gpu:1 `
+    
+- **BashFull** as for BashSmall.sh but this time it uses the full data set with the correct relate files.
+
+## 1. Preprocessing
 
 0. **Download dataset** with `sh download_edgelists.sh`, the script will create a `"pagerank_contest_edgelists"` subdirectory in the current directory.
 1. **Elaborate dataset** with `python3 ElaborateDataset.py [-v vertexPath -e edgePath|-s|-f] [-o]` 
@@ -26,7 +40,7 @@ DIRE CHE PER IL CLUSTER C'è UNA BASH SPECIFICA CHE USA IL COMANDO SRUN...
 
 
 
-## Compilation and computation
+## 2. Compilation and computation
 
 1. Compile the sources using `nvcc -arch=sm_35 -rdc=true -lcudadevrt main.cu handleDataset.cpp -o pagerank  -use_fast_math -std=c++11`. If your GPU does not support compute capabilities 3.5 or higher, the compilation will fail. This is required in order to exploit relocatable device code.
 2. Run the algorithm computation using `./pagerank [-i inputPath |-s|-f] [-o] [-d] [-t]`
@@ -37,9 +51,8 @@ DIRE CHE PER IL CLUSTER C'è UNA BASH SPECIFICA CHE USA IL COMANDO SRUN...
     * `-d` specify custom damping value. Defaults to *0.85*
     * `-t` specify custom precision error threshold. Defaults to *10e-6*
 
-You can skip these steps by using the provided script to automate this phase `sh compileandrun.sh` and passing the parameters as specified above
 
-## Postprocessing
+## 3. Postprocessing
 
 1. **Elaborate Result** with `python3 GenerateResult.py [-v vertexPath -o pageRankPath -p pageRankPath|-s|-f] [-o]`
     * `-v vertexPath` vertices file path.
@@ -48,7 +61,7 @@ You can skip these steps by using the provided script to automate this phase `sh
     * `-p pageRankPath` pageRank file path computed at previous phase.
     * `-o outputPath` specify custom target file for dataset output.
 
-## Validation
+## 4. Validation
 1. **Check Result** using the command `c++ checker.cpp -o checker' generate the binary to check the result.
 2. Run the code using `./checker -c checkerPath -t truthPath [-s]`
 	* `-c checkerPath` path of the file to be checked
@@ -68,4 +81,5 @@ Precision threshold is *0.000001*.
 * DataSet **"Full"**: 34 iterations, time to convergence: *3.666* s.
 
 	
+
 

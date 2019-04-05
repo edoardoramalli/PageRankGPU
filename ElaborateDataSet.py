@@ -1,9 +1,8 @@
-from scipy.sparse import csr_matrix, diags, lil_matrix
+from scipy.sparse import csr_matrix, diags
 import csv
 import sys
 import getopt
 import time
-from tqdm import tqdm
 
 
 class Bcolors:
@@ -24,8 +23,8 @@ def parse_input(argv):
     damping_factor = 0.85
     try:
         opts, args = getopt.getopt(argv, "sfv:e:o:d:", ["efile=", "vfile=", "ofile=", "dfile="])
-    except getopt.GetoptError:
-        print(Bcolors.FAIL + "Syntax Error " + str(getopt.GetoptError) + Bcolors.ENDC)
+    except getopt.GetoptError as err:
+        print(Bcolors.FAIL + "Syntax Error " + str(err) + Bcolors.ENDC)
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-f':
@@ -63,8 +62,8 @@ def parse_input(argv):
         print(Bcolors.FAIL + "Invalid Damping (0 < d < 1)" + Bcolors.ENDC)
         exit(2)
 
-    print(Bcolors.WARNING + "Edge Path : " + path_edge + Bcolors.ENDC)
-    print(Bcolors.WARNING + "Vertex Path : " + path_vertex + Bcolors.ENDC)
+    print(Bcolors.WARNING + "Vertices Path : " + path_vertex + Bcolors.ENDC)
+    print(Bcolors.WARNING + "Edges Path : " + path_edge + Bcolors.ENDC)
     print(Bcolors.WARNING + "Output Path : " + destination_path + Bcolors.ENDC)
     print(Bcolors.WARNING + "Damping Factor : " + str(damping_factor) + Bcolors.ENDC)
 
@@ -85,7 +84,7 @@ def manage_vertex(path_vertex):
     with open(path_vertex, encoding='utf-8') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter='*')
         it = 0
-        for row in tqdm(csv_reader):
+        for row in csv_reader:
             name_site = (row[0].replace('"', '')).strip()
             dictionary[name_site] = it
             it = it + 1
@@ -101,22 +100,22 @@ def manage_edge(path_edge, dictionary, num_of_vertex):
     i = 0
     with open(path_edge, encoding='utf-8') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=' ')
-        for line in tqdm(csv_reader):
+        for line in csv_reader:
             name_site = (line[0].replace('"', '')).strip()
             reported_site = (line[1].replace('"', '')).strip()
             source_index = (dictionary[name_site])
             destination_index = (dictionary[reported_site])
-            if source_index == None:
+            if source_index is None:
                 print(Bcolors.FAIL + "Missing Source Index : " + name_site + Bcolors.ENDC)
-            if destination_index == None:
+            if destination_index is None:
                 print(Bcolors.FAIL + "Missing Destination Index : " + reported_site + Bcolors.ENDC)
-            if source_index != None and destination_index != None:
+            if source_index is not None and destination_index is not None:
                 row.append(source_index)
                 column.append(destination_index)
                 data.append(1)
                 i = i + 1
 
-    print(Bcolors.OKGREEN + "Number of Edge : " + str(i) + Bcolors.ENDC)
+    print(Bcolors.OKGREEN + "Number of Edges : " + str(i) + Bcolors.ENDC)
     csv_file.close()
 
     dimension = int(num_of_vertex)
@@ -126,12 +125,12 @@ def manage_edge(path_edge, dictionary, num_of_vertex):
     print(Bcolors.OKBLUE + "Creating d^-1 vector..." + Bcolors.ENDC)
     d = a_matrix.sum(axis=1)
     d_pr = []
-    for el in tqdm(d.transpose().tolist()[0]):
+    for el in d.transpose().tolist()[0]:
         d_pr.append((1.0 / el) if el != 0 else 0)
 
     d_inv = diags(d_pr, 0)
 
-    print(Bcolors.OKBLUE + "Multiplying d_inv * a_matrix..." + Bcolors.ENDC)
+    print(Bcolors.OKBLUE + "Multiplying d_inv * A_matrix..." + Bcolors.ENDC)
     t_matrix = d_inv.dot(a_matrix)
 
     print(Bcolors.OKBLUE + "Transposing T..." + Bcolors.ENDC)
@@ -145,7 +144,7 @@ def compute_damping_matrix(num_of_vertex, damping_factor):
     return a
 
 
-def compute_row(v):
+def compute_indicies_row(v):
     rr = []
     for i in range(0, len(v) - 1):
         old = i
@@ -189,9 +188,9 @@ def main(argv):
     lunghezza_empty_row = len(empty_row)
 
     print(Bcolors.OKBLUE + "Compute Row with Data..." + Bcolors.ENDC)
-    rows = compute_row(t_final.indptr)
+    rows = compute_indicies_row(t_final.indptr)
 
-    print(Bcolors.OKGREEN + "Write CSV" + Bcolors.ENDC)
+    print(Bcolors.OKGREEN + "Writing CSV..." + Bcolors.ENDC)
 
     with open(destination_path, "w+") as f:
         writer = csv.writer(f, delimiter=',')

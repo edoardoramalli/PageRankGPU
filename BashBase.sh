@@ -26,16 +26,18 @@ BLINKING='\033[5m'
 REVERSE='\033[7m'
 NC='\033[0m'
 
-while getopts d:t:v:e:n:a:b: option
+while getopts d:t:v:e:n:a:b:c:g:k: option
 do
     case "${option}" in
         t) THRESHOLD=${OPTARG};;
         v) VERTEX=${OPTARG};;
         e) EDGE=${OPTARG};;
-        d) DAMPING=$OPTARG;;
-        n) NAME=$OPTARG;;
-        a) TEST1=$OPTARG;;
-        b) TEST2=$OPTARG;;
+        d) DAMPING=${OPTARG};;
+        n) NAME=${OPTARG};;
+        a) TEST1=${OPTARG};;
+        b) TEST2=${OPTARG};;
+        c) CLUSTER=${OPTARG};;
+        g) GPU=${OPTARG};;
     esac
 done
 
@@ -85,9 +87,6 @@ fi
 #     exit 1
 # fi
 
-date
-printf "\n"
-
 printf "${YELLOW}Execute PageRank algorithm${NC}\n\n"
 
 printf "${CYAN}Test name : $NAME${NC}\n"
@@ -107,7 +106,7 @@ if [ -f ./$ELABORATEBASH ]; then
     elif [ "$scelta" = "N" ]; then
         printf "\n"
         printf "${RED}Elaborate DataSet (1/6)${NC}\n\n"
-        python3 ElaborateDataSet.py -v ${VERTEX} -e ${EDGE} -d ${DAMPING} -o $ELABORATEBASH
+        $CLUSTER python3 ElaborateDataSet.py -v ${VERTEX} -e ${EDGE} -d ${DAMPING} -o $ELABORATEBASH
         printf "\n"
     else
         printf "${PURPLE}Invalid Input${NC}\n"
@@ -115,7 +114,7 @@ if [ -f ./$ELABORATEBASH ]; then
     fi
 else
     printf "${RED}Elaborate DataSet (1/6)${NC}\n\n"
-    python3 ElaborateDataSet.py -v ${VERTEX} -e ${EDGE} -d ${DAMPING} -o $ELABORATEBASH
+    $CLUSTER python3 ElaborateDataSet.py -v ${VERTEX} -e ${EDGE} -d ${DAMPING} -o $ELABORATEBASH
     printf "\n"
 fi
 
@@ -126,32 +125,31 @@ printf "\n"
 
 PKCOMPUTED="pk_$ELABORATEBASH"
 
-printf "${RED}Execute PageRank Algorithm (3/6)${NC}\n\n"
-#srun -N1 --gres=gpu:1  ./pagerank -i $ELABORATEBASH -o $PKCOMPUTED -d $DAMPING -t $THRESHOLD
-./pagerank -i $ELABORATEBASH -o $PKCOMPUTED -d $DAMPING -t $THRESHOLD
+printf "${RED}Execution of PageRank Algorithm (3/6)${NC}\n\n"
+$GPU ./pagerank -i $ELABORATEBASH -o $PKCOMPUTED -d $DAMPING -t $THRESHOLD
 printf "\n"
 
 PKRESULT="result_$NAME"
 
 printf "${RED}Elaborate Result (4/6)${NC}\n\n"
-python3 GenerateResult.py -v $VERTEX -o $PKRESULT -p $PKCOMPUTED
+$CLUSTER python3 GenerateResult.py -v $VERTEX -o $PKRESULT -p $PKCOMPUTED
 printf "\n"
 
 printf "${RED}Compiling Checker source file (5/6)${NC}\n"
-c++ checker.cpp -o checker -std=c++11
+$CLUSTER c++ checker.cpp -o checker -std=c++11
 printf "\n"
 
-printf "${RED}Execute Verification Algorithm (6/6)${NC}\n\n"
+printf "${RED}Executing Verification Algorithm (6/6)${NC}\n\n"
 
 if [ "$TEST1" != "" ]; then
     printf "${ORANGE}TEST 1${NC}\n\n"
-    ./checker -c $PKRESULT -t $TEST1 -s
+    $CLUSTER ./checker -c $PKRESULT -t $TEST1 -s
     printf "\n"
 fi
 
 if [ "$TEST2" != "" ]; then
     printf "${ORANGE}TEST 2${NC}\n\n"
-    ./checker -c $PKRESULT -t $TEST2 -s
+    $CLUSTER ./checker -c $PKRESULT -t $TEST2 -s
     printf "\n"
 fi
 
