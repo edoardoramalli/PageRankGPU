@@ -102,10 +102,10 @@ if [ -f ./$ELABORATEBASH ]; then
     read -p "File $ELABORATEBASH Already present, reuse it? (Y) (N)  "  scelta
     if [ "$scelta" = "Y" ]; then
         printf "\n"
-        printf "${RED}Reuse elaborated DataSet (1/6)${NC}\n\n"
+        printf "${ORANGE}Reuse elaborated DataSet (1/6)${NC}\n\n"
     elif [ "$scelta" = "N" ]; then
         printf "\n"
-        printf "${RED}Elaborate DataSet (1/6)${NC}\n\n"
+        printf "${ORANGE}Elaborate DataSet (1/6)${NC}\n\n"
         $CLUSTER python3 ElaborateDataSet.py -v ${VERTEX} -e ${EDGE} -d ${DAMPING} -o $ELABORATEBASH
         printf "\n"
     else
@@ -113,33 +113,33 @@ if [ -f ./$ELABORATEBASH ]; then
         exit 2
     fi
 else
-    printf "${RED}Elaborate DataSet (1/6)${NC}\n\n"
+    printf "${ORANGE}Elaborate DataSet (1/6)${NC}\n\n"
     $CLUSTER python3 ElaborateDataSet.py -v ${VERTEX} -e ${EDGE} -d ${DAMPING} -o $ELABORATEBASH
     printf "\n"
 fi
 
 
-printf "${RED}Compiling CUDA source file (2/6)${NC}\n"
+printf "${ORANGE}Compiling CUDA source file (2/6)${NC}\n"
 nvcc -arch=sm_35 -rdc=true -lcudadevrt main.cu handleDataset.cpp -o pagerank -use_fast_math -std=c++11
 printf "\n"
 
 PKCOMPUTED="pk_$ELABORATEBASH"
 
-printf "${RED}Execution of PageRank Algorithm (3/6)${NC}\n\n"
+printf "${ORANGE}Execution of PageRank Algorithm (3/6)${NC}\n\n"
 $GPU ./pagerank -i $ELABORATEBASH -o $PKCOMPUTED -d $DAMPING -t $THRESHOLD
 printf "\n"
 
 PKRESULT="result_$NAME"
 
-printf "${RED}Elaborate Result (4/6)${NC}\n\n"
+printf "${ORANGE}Elaborate Result (4/6)${NC}\n\n"
 $CLUSTER python3 GenerateResult.py -v $VERTEX -o $PKRESULT -p $PKCOMPUTED
 printf "\n"
 
-printf "${RED}Compiling Checker source file (5/6)${NC}\n"
+printf "${ORANGE}Compiling Checker source file (5/6)${NC}\n"
 $CLUSTER c++ checker.cpp -o checker -std=c++11
 printf "\n"
 
-printf "${RED}Executing Verification Algorithm (6/6)${NC}\n\n"
+printf "${ORANGE}Executing Verification Algorithm (6/6)${NC}\n\n"
 
 if [ "$TEST1" != "" ]; then
     printf "${ORANGE}TEST 1${NC}\n\n"
