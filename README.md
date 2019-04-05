@@ -64,6 +64,7 @@ The bash file also uses two files, `small_directed_truth_string` and `small_undi
     * `-o outputPath` specify custom target file for dataset output.
 
 ## 4. Validation
+0. **Download Truth Value of pageRank** with `sh download_truth_values.sh`, the script will create a `"pagerank_truth_values"` subdirectory in the current directory with "truth" pageRank values.
 1. **Check Result** using the command `c++ checker.cpp -o checker' generate the binary to check the result.
 2. Run the code using `./checker -c checkerPath -t truthPath [-s]`
 	* `-c checkerPath` path of the file to be checked.
@@ -83,5 +84,6 @@ Precision threshold is *0.000001*.
 * DataSet **"Full"**: 34 iterations, time to convergence: *3.666* s.
 
 	
+
 
 
