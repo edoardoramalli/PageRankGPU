@@ -88,11 +88,11 @@ fi
 date
 printf "\n"
 
-printf "${YELLOW}Execution PageRank${NC}\n\n"
+printf "${YELLOW}Execute PageRank algorithm${NC}\n\n"
 
-printf "${CYAN}Name Test : $NAME${NC}\n"
-printf "${CYAN}Path Vertex : $VERTEX${NC}\n"
-printf "${CYAN}Path Edge : $EDGE${NC}\n"
+printf "${CYAN}Test name : $NAME${NC}\n"
+printf "${CYAN}Vertices file path: $VERTEX${NC}\n"
+printf "${CYAN}Edges file path : $EDGE${NC}\n"
 printf "${CYAN}Threshold : $THRESHOLD${NC}\n"
 printf "${CYAN}Damping Factor : $DAMPING${NC}\n"
 printf "\n"
@@ -100,10 +100,10 @@ printf "\n"
 ELABORATEBASH="data_$NAME"
 
 if [ -f ./$ELABORATEBASH ]; then
-    read -p "File $ELABORATEBASH Already Present, Reuse it? (Y) (N)  "  scelta
+    read -p "File $ELABORATEBASH Already present, reuse it? (Y) (N)  "  scelta
     if [ "$scelta" = "Y" ]; then
         printf "\n"
-        printf "${RED}Reuse Elaborate DataSet (1/6)${NC}\n\n"
+        printf "${RED}Reuse elaborated DataSet (1/6)${NC}\n\n"
     elif [ "$scelta" = "N" ]; then
         printf "\n"
         printf "${RED}Elaborate DataSet (1/6)${NC}\n\n"
@@ -126,7 +126,7 @@ printf "\n"
 
 PKCOMPUTED="pk_$ELABORATEBASH"
 
-printf "${RED}Execute pagRank Algorithm (3/6)${NC}\n\n"
+printf "${RED}Execute PageRank Algorithm (3/6)${NC}\n\n"
 #srun -N1 --gres=gpu:1  ./pagerank -i $ELABORATEBASH -o $PKCOMPUTED -d $DAMPING -t $THRESHOLD
 ./pagerank -i $ELABORATEBASH -o $PKCOMPUTED -d $DAMPING -t $THRESHOLD
 printf "\n"

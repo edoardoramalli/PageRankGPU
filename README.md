@@ -60,8 +60,8 @@ Damping factor selected for the tests is *0.85*.
 Precision threshold is *0.000001*.
 
 ### CLUSTER FACILITY (GTX 960 with 2GB of GRAM, 8 cores Intel core i7 and 32GB of RAM)
-* DataSet **"Small"**:
-* DataSet **"Full"**:
+* DataSet **"Small"**: 22 iterations, time to covergence: *0.045* s.
+* DataSet **"Full"**: 34 iterations, time to covergence: *6.402* s.
 
 ### EVGA GTX 1060 OC (6GB GDDR5), dual-core Intel core i7 4650U and 8 GB of RAM
 * DataSet **"Small"**: 22 iterations, time to covergence: *0.034* s.
