@@ -6,7 +6,7 @@ do
     esac
 done
 DATA=$(date)
-if [ "$LOCAL" -eq "1" ]; then
+if [[ "$LOCAL" -eq "1" ]]; then
     printf "Local Execution - $DATA\n\n"
     sh BashBase.sh -e ./pagerank_contest_edgelists/graph_small_e.edgelist \
     -v ./pagerank_contest_edgelists/graph_small_v.edgelist\
