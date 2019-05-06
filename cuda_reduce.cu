@@ -32,7 +32,7 @@ template <unsigned int blockSize> __device__ void warpReduce(volatile float *sda
 //     while ((old = atomicExch(address, new_old))!=0.0f);
 // }
 
-template <unsigned int blockSize> __global__ void pkMultiply(float* data, int* columns, int* rows, float* old_pk, float* new_pk, unsigned int len, int *pk_len){
+template <unsigned int blockSize> __global__ void pkMultiply(float * __restrict__ data, int * __restrict__ columns, int * __restrict__ rows, float * __restrict__ old_pk, float *new_pk, unsigned int len, int * __restrict__ pk_len){
     /*
     Taking as input data, columns and rows from a (row, column) --> data representation
     perform partial row by column matrix multiplication element by element, 
@@ -50,7 +50,7 @@ template <unsigned int blockSize> __global__ void pkMultiply(float* data, int* c
 	}
 }
 
-template <unsigned int blockSize> __global__ void sumAll(float *empty_contrib, float *damping_matrix, float *new_pk, int *pk_len){
+template <unsigned int blockSize> __global__ void sumAll(float * __restrict__ empty_contrib, float * __restrict__ damping_matrix, float *new_pk, int * __restrict__ pk_len){
     /* Sum all the partial contributions:
         - empty columns contribute, in CSR representation of T transposed 
         (before adding teleportation probabilities) are discarded. These columns generate a 
@@ -70,7 +70,7 @@ template <unsigned int blockSize> __global__ void sumAll(float *empty_contrib, f
 	}
 }
 
-template <unsigned int blockSize> __global__ void cudaReduction(float *array_in, float *reduct, size_t array_len) {
+template <unsigned int blockSize> __global__ void cudaReduction(float *array_in, float *reduct, size_t __restrict__ array_len) {
     /*Parallel block reduction from 
     CUDA seminar tutorial (kernel #7)
     https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
@@ -111,7 +111,7 @@ template <unsigned int blockSize> __global__ void cudaReduction(float *array_in,
 	} 
 }
 
-template <unsigned int blockSize> __global__ void uniformReduction(float *old_pk, int *empty_cols,float *reduct, float *factor, size_t array_len) {
+template <unsigned int blockSize> __global__ void uniformReduction(float * __restrict__ old_pk, int * __restrict__ empty_cols, float *reduct, float * __restrict__ factor, size_t __restrict__ array_len) {
 	/* Calculate contribution from empty columns to each line:
 	sum pagerank at index equal to empty column index in T',
 	then multiply by the teleportation probability */
@@ -151,7 +151,7 @@ template <unsigned int blockSize> __global__ void uniformReduction(float *old_pk
 	} 
 }
 
-template <unsigned int blockSize> __global__ void terminationReduction(float *new_pk, float *old_pk, float *reduct, size_t array_len) {
+template <unsigned int blockSize> __global__ void terminationReduction(float * __restrict__ new_pk, float * __restrict__ old_pk, float * __restrict__ reduct, size_t __restrict__ array_len) {
     extern volatile __shared__ float sdata[];
 
     /* Calculate reduction to block size performing 
@@ -191,7 +191,7 @@ template <unsigned int blockSize> __global__ void terminationReduction(float *ne
 	} 
 }
 
-template <unsigned int blockSize> __global__ void checkTermination(float *old_pk, float *new_pk, float* out, float* result, bool *loop, 
+template <unsigned int blockSize> __global__ void checkTermination(float * __restrict__ old_pk, float * __restrict__ new_pk, float * out, float* result, bool *loop, 
     
     /* Check L2 norm of difference of pageRank vectors,
     loop variable is set true only if precision has not been reached */

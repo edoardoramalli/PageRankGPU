@@ -25,8 +25,8 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 
 
-void sauronEye(float* pkCPU, float *oldPkGPU, float *newPkGPU, int *emptyColIndices, int *rowIndicesGPU, int *columnIndicesGPU,
-	float *matrixDataGPU, float *dampingMatrixFactorGPU, int *pkLenGPU, int *matrixDataLenGPU,
+void sauronEye(float* pkCPU, float *oldPkGPU, float *newPkGPU, int * __restrict__ emptyColIndices, int * __restrict__ rowIndicesGPU, int * __restrict__ columnIndicesGPU,
+	float * __restrict__ matrixDataGPU, float * __restrict__ dampingMatrixFactorGPU, int * __restrict__ pkLenGPU, int * __restrict__ matrixDataLenGPU,
 	 int *emptyColIndicesLenGPU, int dampingFactor, float precisionThreshold){
 
 	/* Concealed within his fortress, the lord of Mordor sees all.
