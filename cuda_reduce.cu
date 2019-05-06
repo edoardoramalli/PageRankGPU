@@ -18,19 +18,19 @@ template <unsigned int blockSize> __device__ void warpReduce(volatile float *sda
     if (blockSize >= 2) sdata[tid] += sdata[tid + 1];
 }
 
-__device__ inline void floatAtomicAdd(float* address, float value){
+// __device__ inline void floatAtomicAdd(float* address, float value){
 
-    /*  Try writing on atomic variable until writing is truly performed */
+//     /*  Try writing on atomic variable until writing is truly performed */
 
-    float old = value;  
-    float new_old;
+//     float old = value;  
+//     float new_old;
 
-    do{
-        new_old = atomicExch(address, 0.0f);
-        new_old += old;
-    }
-    while ((old = atomicExch(address, new_old))!=0.0f);
-}
+//     do{
+//         new_old = atomicExch(address, 0.0f);
+//         new_old += old;
+//     }
+//     while ((old = atomicExch(address, new_old))!=0.0f);
+// }
 
 template <unsigned int blockSize> __global__ void pkMultiply(float* data, int* columns, int* rows, float* old_pk, float* new_pk, unsigned int len, int *pk_len){
     /*
@@ -46,7 +46,7 @@ template <unsigned int blockSize> __global__ void pkMultiply(float* data, int* c
 	
 	if(i < len){
 		float sum = data[i] * old_pk[columns[i]];
-		floatAtomicAdd(&new_pk[rows[i]], sum);		
+		atomicAdd(&new_pk[rows[i]], sum);		
 	}
 }
 
